@@ -1,8 +1,10 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+<div align="center"> 
+        
+   ![change_the_style_to_a_3d_computer_generated](https://github.com/user-attachments/assets/19601d70-7efb-435b-bce2-b15f497a38c5)  
 
-# 🌌 AETHER RESCUE
-### Neural Simulation & Metriplectic AI Combat Engine
+</div>   
+
+ # Neural Simulation & Metriplectic AI Combat Engine🌌
 
 [![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactjs.org/)
@@ -87,5 +89,8 @@ Every dynamic system in this simulation follows the **Three Rules of the Mandato
 
 ---
 <div align="center">
-Developed by <b>Jako</b> • Part of the QuoreMind Neural Network Research.
+Developed by <b>Jako</b> • Part of the QuoreMind Neural Network Research. Powered on the <b>Google AI studio and Antigravity IDE</b>
+<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+
 </div>
+
