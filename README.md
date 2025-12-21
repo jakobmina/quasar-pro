@@ -13,6 +13,10 @@
 
 </div>
 
+## 📺 Gameplay Demonstration
+
+![Gameplay Demo](/home/jako/.gemini/antigravity/brain/48cbf345-ebdf-46e6-9998-e9d4ca32924d/launch_game_initial_1766357008805.webp)
+
 ## 🧬 Overview
 
 **Aether Rescue** is a high-fidelity tactical simulation exploring the boundaries of **Metriplectic Dynamics**. As a Pilot, you interface with the Aether Neural Network to rescue fragmented data shards while managing system corruption and defending against entropic viral entities.

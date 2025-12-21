@@ -1,7 +1,7 @@
 
 import React, { useRef, useEffect, useCallback, useMemo } from 'react';
-import { Ship, Laser, Particle, SingularityWave, CompanionShip, EnemyShip, Planet, MatrixNode, ResourceShard, CrystalStructure, Megastructure, SpaceDebris, PowerUpItem, InfernalBeam } from '../services/physics';
-import { GameStatus, SimulationState, WeaponType, ShipModel } from '../types';
+import { Ship, Laser, Particle, SingularityWave, CompanionShip, EnemyShip, Planet, MatrixNode, ResourceShard, CrystalStructure, Megastructure, SpaceDebris, PowerUpItem, InfernalBeam, GoldenHub, KamikazeEnemy, MotherShip, getGoldenValue } from '../services/physics';
+import { GameStatus, SimulationState, WeaponType, ShipModel, MissionType } from '../types';
 import { PHYSICS, COLORS, WEAPON_CONFIGS, EnemyType, SHIP_MODELS } from '../constants';
 import { soundService } from '../services/sound';
 
@@ -12,6 +12,7 @@ interface SimulationProps extends SimulationState {
 
 const Simulation: React.FC<SimulationProps> = ({
   status, weapon, weaponLevel, shipModel, specialCharge, aiIntegrity, corruptionLevel,
+  explorationDistance, currentMission,
   onStateUpdate, onGameOver, calibration
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -57,8 +58,10 @@ const Simulation: React.FC<SimulationProps> = ({
     megastructures: Array.from({ length: 5 }, () => new Megastructure()),
     matrixNode: new MatrixNode(),
     resources: [],
+    hubs: [],
     camera: { x: PHYSICS.MATRIX_NODE_X, y: PHYSICS.MATRIX_NODE_Y, zoom: 0.45, shake: 0 },
-    keys: {}
+    keys: {},
+    lastMissionUpdate: 0
   });
 
   const explodeEntity = useCallback((x: number, y: number, color: string, amount: number, isData: boolean = false) => {
@@ -120,7 +123,9 @@ const Simulation: React.FC<SimulationProps> = ({
         ctx.translate(width / 2, height / 2);
         ctx.scale(camera.zoom, camera.zoom);
         ctx.translate(-camera.x, -camera.y);
+        ctx.translate(-camera.x, -camera.y);
         planets.forEach(p => p.draw(ctx));
+        entitiesRef.current.hubs.forEach(h => h.draw(ctx));
         matrixNode.draw(ctx);
         ship.draw(ctx);
         ctx.restore();
@@ -214,8 +219,36 @@ const Simulation: React.FC<SimulationProps> = ({
         ship.x += ship.xv; ship.y += ship.yv;
         ship.xv *= PHYSICS.FRICTION; ship.yv *= PHYSICS.FRICTION;
 
+        let shipVel = Math.hypot(ship.xv, ship.yv);
+        onStateUpdate({ explorationDistance: shipVel * 0.1 });
+
         camera.x += (ship.x - camera.x) * 0.1;
         camera.y += (ship.y - camera.y) * 0.1;
+
+        // --- MISSION CONTROLLER ---
+        if (nowMs - entitiesRef.current.lastMissionUpdate > 1000) {
+          entitiesRef.current.lastMissionUpdate = nowMs;
+          if (currentMission && currentMission.type === MissionType.EXPLORE) {
+            const progress = (explorationDistance / currentMission.goal) * 100;
+            if (explorationDistance >= currentMission.goal) {
+              onStateUpdate({
+                messages: [`MISSION_COMPLETE: ${currentMission.title}`, "AETHER: You found a stable pocket."],
+                currentMission: {
+                  type: MissionType.STABILIZE_HUB,
+                  title: "Hub Stabilization",
+                  description: "Defend against the entropic surge near the Golden Hub.",
+                  targetIndex: Math.floor(explorationDistance / 1000),
+                  progress: 0,
+                  goal: 5
+                }
+              });
+              // Spawn a Golden Hub nearby
+              const hubIdx = Math.floor(explorationDistance / 1000);
+              entitiesRef.current.hubs.push(new GoldenHub(hubIdx));
+            }
+          }
+        }
+
         if (camera.shake > 0) {
           camera.x += (Math.random() - 0.5) * camera.shake;
           camera.y += (Math.random() - 0.5) * camera.shake;
@@ -226,7 +259,6 @@ const Simulation: React.FC<SimulationProps> = ({
         ctx.fillStyle = COLORS.VOID_DARK; ctx.fillRect(0, 0, width, height);
 
         // Fondo Estelar Reactivo
-        const shipVel = Math.hypot(ship.xv, ship.yv);
         stars.forEach(s => {
           let sx = ((s.x - camera.x * s.depth) % width + width) % width;
           let sy = ((s.y - camera.y * s.depth) % height + height) % height;
@@ -248,6 +280,7 @@ const Simulation: React.FC<SimulationProps> = ({
         ctx.translate(-camera.x, -camera.y);
 
         planets.forEach(p => p.draw(ctx));
+        entitiesRef.current.hubs.forEach(h => h.draw(ctx));
         matrixNode.draw(ctx);
         crystalStructures.forEach(c => c.draw(ctx));
         debris.forEach(d => d.draw(ctx));
@@ -271,6 +304,22 @@ const Simulation: React.FC<SimulationProps> = ({
               explodeEntity(ship.x, ship.y, '#fff', 50, true);
             }
           }
+        });
+
+        entitiesRef.current.hubs.forEach(hub => {
+          hub.treasures.forEach((t, ti) => {
+            if (Math.hypot(t.x - ship.x, t.y - ship.y) < 80) {
+              hub.treasures.splice(ti, 1);
+              onStateUpdate({
+                weaponLevel: 2,
+                maxIntegrity: 20,
+                score: 5000,
+                messages: ["TREASURE_FOUND: Aether Core salvaged."]
+              });
+              explodeEntity(ship.x, ship.y, '#a855f7', 40, true);
+              soundService.playPickup();
+            }
+          });
         });
 
         ship.draw(ctx);
@@ -325,9 +374,28 @@ const Simulation: React.FC<SimulationProps> = ({
         // Spawning de enemigos
         if (enemies.length < 25 && Math.random() > 0.96) {
           const ang = Math.random() * Math.PI * 2;
-          const type = Math.random() > 0.8 ? EnemyType.INTERCEPTOR : EnemyType.SCOUT;
-          enemies.push(new EnemyShip(ship.x + Math.cos(ang) * 2200, ship.y + Math.sin(ang) * 2200, type));
+          const spawnDist = 2200;
+          const prob = Math.random();
+          let newEnemy;
+          if (prob > 0.95) {
+            newEnemy = new MotherShip(ship.x + Math.cos(ang) * spawnDist, ship.y + Math.sin(ang) * spawnDist);
+            onStateUpdate({ messages: ["WARNING: MotherShip detected!"] });
+          } else if (prob > 0.8) {
+            newEnemy = new KamikazeEnemy(ship.x + Math.cos(ang) * spawnDist, ship.y + Math.sin(ang) * spawnDist);
+          } else {
+            const type = prob > 0.4 ? EnemyType.SCOUT : EnemyType.INTERCEPTOR;
+            newEnemy = new EnemyShip(ship.x + Math.cos(ang) * spawnDist, ship.y + Math.sin(ang) * spawnDist, type);
+          }
+          enemies.push(newEnemy);
         }
+
+        // Logic for motherships
+        enemies.forEach(en => {
+          if (en instanceof MotherShip && en.canSpawn()) {
+            const ang = Math.random() * Math.PI * 2;
+            enemies.push(new EnemyShip(en.x + Math.cos(ang) * 100, en.y + Math.sin(ang) * 100, EnemyType.SCOUT));
+          }
+        });
 
         ctx.restore();
 
@@ -396,6 +464,23 @@ const Simulation: React.FC<SimulationProps> = ({
         <canvas ref={radarCanvasRef} width={120} height={120} className="block" />
         <div className="text-[7px] mono text-sky-500/30 mt-1 text-center font-bold tracking-widest uppercase">Range: 4.0k</div>
       </div>
+
+      {currentMission && (
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-50 w-80 bg-black/60 backdrop-blur-md border-l-4 border-amber-500 p-3 shadow-[0_0_30px_rgba(245,158,11,0.2)]">
+          <div className="text-[10px] text-amber-500/70 mono uppercase tracking-widest mb-1">Active_Objective // Mission_{currentMission.type}</div>
+          <div className="text-sm font-bold text-white mb-1 uppercase italic tracking-tight">{currentMission.title}</div>
+          <div className="text-[11px] text-amber-200/60 leading-tight mb-2 font-medium">{currentMission.description}</div>
+          <div className="w-full bg-amber-500/10 h-1.5 rounded-full overflow-hidden relative">
+            <div
+              className="bg-amber-500 h-full transition-all duration-1000 ease-out"
+              style={{ width: `${Math.min(100, (explorationDistance / currentMission.goal) * 100)}%` }}
+            />
+            <div className="absolute inset-0 flex items-center justify-center text-[8px] text-white font-bold mix-blend-difference">
+              {Math.floor(explorationDistance)} / {currentMission.goal} LY
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

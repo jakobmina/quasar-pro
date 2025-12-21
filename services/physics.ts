@@ -1,6 +1,12 @@
 
 import { PHYSICS, COLORS, EnemyType } from '../constants';
-import { PowerUpType } from '../types';
+import { PowerUpType, MissionType } from '../types';
+
+const PHI = (1 + Math.sqrt(5)) / 2;
+
+export function getGoldenValue(n: number): number {
+  return Math.cos(Math.PI * n) * Math.cos(Math.PI * PHI * n);
+}
 
 function drawHealthBar(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, health: number, maxHealth: number, color: string) {
   if (health >= maxHealth || health <= 0) return;
@@ -129,6 +135,52 @@ export class EnemyShip {
   }
 }
 
+export class KamikazeEnemy extends EnemyShip {
+  constructor(x: number, y: number) {
+    super(x, y, EnemyType.KAMIKAZE);
+  }
+  update(px: number, py: number) {
+    super.update(px, py);
+    // Oversteer slightly for erratic movement
+    this.angle += Math.sin(Date.now() * 0.01) * 0.2;
+  }
+}
+
+export class MotherShip extends EnemyShip {
+  lastSpawn: number = 0;
+  constructor(x: number, y: number) {
+    super(x, y, EnemyType.MOTHERSHIP);
+  }
+  update(px: number, py: number) {
+    super.update(px, py);
+  }
+  canSpawn() {
+    const now = Date.now();
+    if (now - this.lastSpawn > 4000) {
+      this.lastSpawn = now;
+      return true;
+    }
+    return false;
+  }
+  draw(ctx: CanvasRenderingContext2D) {
+    ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(-this.angle);
+    ctx.strokeStyle = this.hitTimer > 0 ? '#fff' : this.config.color; ctx.lineWidth = 4;
+    // Massive hexagonal fortress shape
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (Math.PI * 2 / 6) * i;
+      const x = Math.cos(a) * this.r;
+      const y = Math.sin(a) * this.r;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath(); ctx.stroke();
+    // Inner core
+    ctx.beginPath(); ctx.arc(0, 0, this.r * 0.4, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+    drawHealthBar(ctx, this.x, this.y, this.r, this.health, this.maxHealth, this.config.color);
+  }
+}
+
 export class Ship {
   x: number; y: number; r: number = 12; angle: number = Math.PI / 2; xv: number = 0; yv: number = 0;
   color: string = '#0ea5e9'; hitTimer: number = 0;
@@ -223,5 +275,61 @@ export class CompanionShip {
 export class PowerUpItem {
   x: number; y: number; type: PowerUpType; r: number = 15;
   constructor(x: number, y: number, type: PowerUpType) { this.x = x; this.y = y; this.type = type; }
-  draw(ctx: CanvasRenderingContext2D) { ctx.strokeStyle = '#a855f7'; ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2); ctx.stroke(); }
+  draw(ctx: CanvasRenderingContext2D) {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.strokeStyle = '#a855f7';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, this.r, 0, Math.PI * 2); ctx.stroke();
+    ctx.font = '10px monospace';
+    ctx.fillStyle = '#a855f7';
+    ctx.textAlign = 'center';
+    ctx.fillText(this.type.charAt(0), 0, 4);
+    ctx.restore();
+  }
+}
+
+export class GoldenHub {
+  x: number; y: number; index: number; r: number = 1000;
+  treasures: PowerUpItem[] = [];
+  lifeParticles: Particle[] = [];
+
+  constructor(n: number) {
+    this.index = n;
+    const val = getGoldenValue(n);
+    // Use n and val to determine "pseudorandom" fixed coordinates
+    this.x = (Math.sin(n) * 0.5 + 0.5) * PHYSICS.WORLD_SIZE;
+    this.y = (Math.cos(n * PHI) * 0.5 + 0.5) * PHYSICS.WORLD_SIZE;
+
+    // Spawn some treasures
+    for (let i = 0; i < 3; i++) {
+      const tx = this.x + (Math.random() - 0.5) * 400;
+      const ty = this.y + (Math.random() - 0.5) * 400;
+      this.treasures.push(new PowerUpItem(tx, ty, PowerUpType.QUANTUM_CORE));
+    }
+  }
+
+  draw(ctx: CanvasRenderingContext2D) {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+
+    // Aesthetic quasiperiodic ring
+    const val = getGoldenValue(this.index);
+    ctx.strokeStyle = `rgba(234, 179, 8, ${0.2 + val * 0.3})`;
+    ctx.lineWidth = 5;
+    ctx.setLineDash([30, 10]);
+    ctx.beginPath();
+    ctx.arc(0, 0, this.r * (0.8 + val * 0.2), 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Life energy
+    ctx.fillStyle = 'rgba(16, 185, 129, 0.1)';
+    ctx.beginPath();
+    ctx.arc(0, 0, this.r * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+
+    this.treasures.forEach(t => t.draw(ctx));
+  }
 }

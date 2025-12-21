@@ -17,6 +17,13 @@ export enum Difficulty {
   HARD = 'HARD'
 }
 
+export enum MissionType {
+  EXPLORE = 'EXPLORE',
+  ELIMINATE_MOTHERSHIP = 'ELIMINATE_MOTHERSHIP',
+  RESCUE_AETHER = 'RESCUE_AETHER',
+  STABILIZE_HUB = 'STABILIZE_HUB'
+}
+
 export enum WeaponType {
   LASER = 'LASER',
   SHOTGUN = 'SHOTGUN',
@@ -69,4 +76,13 @@ export interface SimulationState {
   specialCharge: number;
   calibration: CalibrationSettings;
   messages: string[];
+  explorationDistance: number;
+  currentMission?: {
+    type: MissionType;
+    title: string;
+    description: string;
+    targetIndex: number;
+    progress: number;
+    goal: number;
+  };
 }

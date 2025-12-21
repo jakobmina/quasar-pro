@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { GameStatus, SimulationState, Difficulty, WeaponType, ShipModel } from './types';
+import { GameStatus, SimulationState, Difficulty, WeaponType, ShipModel, MissionType } from './types';
 import { PHYSICS, SHIP_MODELS, WEAPON_CONFIGS } from './constants';
 import Simulation from './components/Simulation';
 
@@ -10,7 +10,16 @@ const App: React.FC = () => {
     weaponLevel: 1, droneLevel: 1, upgradePoints: 0,
     aiIntegrity: 100, maxIntegrity: 100, corruptionLevel: 0,
     specialCharge: 0, calibration: { thrustSensitivity: 1.2, turnSensitivity: 1.0, gravitationalForce: 1.0, speedFactor: 1.0 },
-    messages: ["SYSTEM_INIT: Aether Rescue Protocol Online", "AETHER: Help me Pilot... I'm fragmenting."]
+    messages: ["SYSTEM_INIT: Aether Rescue Protocol Online", "AETHER: Help me Pilot... I'm fragmenting."],
+    explorationDistance: 0,
+    currentMission: {
+      type: MissionType.EXPLORE,
+      title: "First Contact",
+      description: "Explore the neural space and locate a Golden Hub.",
+      targetIndex: 0,
+      progress: 0,
+      goal: 1000
+    }
   });
   const [hudVisibility, setHudVisibility] = useState({
     messages: true,
@@ -29,6 +38,7 @@ const App: React.FC = () => {
       const nextCorruption = Math.min(100, Math.max(0, prev.corruptionLevel + (update.corruptionLevel || 0)));
       const nextScore = prev.score + (update.score || 0);
       const nextCharge = Math.min(100, prev.specialCharge + (update.specialCharge || 0));
+      const nextExploration = prev.explorationDistance + (update.explorationDistance || 0);
 
       const nextStatus = (nextIntegrity <= 0 || (update.lives !== undefined && prev.lives + update.lives <= 0)) ? GameStatus.GAME_OVER : (update.status || prev.status);
 
@@ -37,6 +47,7 @@ const App: React.FC = () => {
         ...update,
         score: nextScore, aiIntegrity: nextIntegrity, corruptionLevel: nextCorruption,
         specialCharge: nextCharge, status: nextStatus,
+        explorationDistance: nextExploration,
         lives: update.lives !== undefined ? prev.lives + update.lives : prev.lives
       };
     });
