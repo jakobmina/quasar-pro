@@ -42,6 +42,15 @@ The simulation is built upon the **Mandato Metriplético**, ensuring a rigid bal
 - **Tactical Systems**: Ship models, primary/secondary armament, Quantum Purge, and long-range radar.
 - **Auto-Update System**: Integrated frictionless updates via `electron-updater` (Linux/Windows).
 
+### 🌌 Deep Space Exploration (New!)
+- **Quasiperiodic World Generation**: The universe is generated using a determinstic **Golden Operator** ($O_n$), creating a vast, non-repeating coordiante space.
+- **Golden Hubs**: Discover rare, stable pockets of order amidst the chaos. These hubs contain **Aether Core Treasures** that permanently upgrade your ship.
+- **Mission System**: Track your exploration depth and complete objectives to unlock new challenges.
+
+### 👾 Advanced Adversaries
+- **Kamikaze Swarms**: Erratic, high-speed viral entities that seek to collide with your hull.
+- **MotherShips**: Massive, heavily armored fortresses that deploy smaller Scout units.
+
 ## 🛠️ Tech Stack
 
 - **Core**: React 19 + TypeScript
@@ -84,6 +93,14 @@ The simulation is built upon the **Mandato Metriplético**, ensuring a rigid bal
    ```bash
    npm run electron:dev
    ```
+
+## 🔄 Auto-Update Mechanism
+
+Aether Rescue includes a robust auto-update system powered by **GitHub Actions** and **electron-updater**.
+
+1. **Seamless Updates**: The app checks for new releases on startup.
+2. **Background Download**: Updates are downloaded silently while you play.
+3. **Instant Install**: Next time you restart the game, you'll be on the latest version.
 
 ## 📜 Physics Mandate
 
