@@ -39,7 +39,8 @@ The simulation is built upon the **Mandato Metriplético**, ensuring a rigid bal
 - **Neural Hull Models**: Multiple ship configurations (Interceptor, Tank, Scout).
 - **Modular Armament**: Adaptive weapons including Railguns, Machine Guns, and the devastating Infernal Ray.
 - **Quantum Purge**: A high-energy field stabilization for clearing widespread corruption.
-- **Tactical Radar**: Real-time positional awareness link.
+- **Tactical Systems**: Ship models, primary/secondary armament, Quantum Purge, and long-range radar.
+- **Auto-Update System**: Integrated frictionless updates via `electron-updater` (Linux/Windows).
 
 ## 🛠️ Tech Stack
 

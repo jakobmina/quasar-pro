@@ -1,4 +1,5 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, dialog } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -12,7 +13,7 @@ function createWindow() {
             contextIsolation: true,
             preload: path.join(__dirname, 'preload.js')
         },
-        icon: path.join(__dirname, 'public/favicon.ico') // Optional: Adjust path if needed
+        icon: path.join(__dirname, 'public/favicon.ico')
     });
 
     if (isDev) {
@@ -26,9 +27,34 @@ function createWindow() {
 app.whenReady().then(() => {
     createWindow();
 
+    if (!isDev) {
+        autoUpdater.checkForUpdatesAndNotify();
+    }
+
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
             createWindow();
+        }
+    });
+});
+
+autoUpdater.on('update-available', () => {
+    dialog.showMessageBox({
+        type: 'info',
+        title: 'Update Available',
+        message: 'A new version of Aether Rescue is available. Downloading now...'
+    });
+});
+
+autoUpdater.on('update-downloaded', () => {
+    dialog.showMessageBox({
+        type: 'info',
+        title: 'Update Ready',
+        message: 'Update downloaded. Restart now?',
+        buttons: ['Restart', 'Later']
+    }).then((result) => {
+        if (result.response === 0) {
+            autoUpdater.quitAndInstall();
         }
     });
 });
