@@ -1,0 +1,3 @@
+repository "Quasys/aether@4673886890609@cloud"
+  path "/"
+    smartbranch "/main"

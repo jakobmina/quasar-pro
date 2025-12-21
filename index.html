@@ -1,0 +1,90 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Quantum Scout: Matrix Leap</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #020617;
+            color: #f8fafc;
+            font-family: 'Space Grotesk', sans-serif;
+            overflow: hidden;
+            touch-action: none;
+        }
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        /* Scanline Overlay */
+        body::after {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 100;
+            background-size: 100% 4px, 3px 100%;
+            pointer-events: none;
+            opacity: 0.3;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { filter: drop-shadow(0 0 5px #0ea5e9); opacity: 1; }
+            50% { filter: drop-shadow(0 0 15px #0ea5e9); opacity: 0.8; }
+        }
+        .hud-pulse {
+            animation: pulse-glow 2s infinite ease-in-out;
+        }
+
+        /* Warp Tunnel Animation */
+        @keyframes warp-tunnel {
+            0% { transform: scale(0.5); opacity: 0; filter: blur(20px); }
+            50% { opacity: 1; filter: blur(0px); }
+            100% { transform: scale(2); opacity: 0; filter: blur(40px); }
+        }
+        .warp-fx {
+            position: fixed;
+            inset: 0;
+            background: white;
+            z-index: 200;
+            pointer-events: none;
+            mix-blend-mode: overlay;
+        }
+
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #0ea5e9;
+            border-radius: 10px;
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+    <div id="root"></div>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
