@@ -1,6 +1,6 @@
 <div align="center"> 
-        
-   ![change_the_style_to_a_3d_computer_generated](https://github.com/user-attachments/assets/19601d70-7efb-435b-bce2-b15f497a38c5)  
+                               
+![change_the_style_to_a_3d_computer_generated](https://github.com/user-attachments/assets/19601d70-7efb-435b-bce2-b15f497a38c5)  
 
 </div>   
 
@@ -9,7 +9,7 @@
 [![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactjs.org/)
 [![Electron](https://img.shields.io/badge/Electron-2B2E3A?style=for-the-badge&logo=electron&logoColor=9FEAF9)](https://www.electronjs.org/)
-[![Web Audio API](https://img.shields.io/badge/Web%20Audio%20API-FF4B4B?style=for-the-badge&logo=audio&logoColor=white)]()
+![Web Audio API](https://img.shields.io/badge/Web%20Audio%20API-FF4B4B?style=for-the-badge&logo=audio&logoColor=white)
 
 </div>
 
