@@ -2,12 +2,12 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { GameStatus, SimulationState, Difficulty, WeaponType, ShipModel, MissionType } from './types';
 import { PHYSICS, SHIP_MODELS, WEAPON_CONFIGS } from './constants';
 import Simulation from './components/Simulation';
-import OpenWorldGame from './components/OpenWorldGame';
 
 const App: React.FC = () => {
   const [state, setState] = useState<SimulationState>({
     score: 0, lives: 5, status: GameStatus.INITIAL, difficulty: Difficulty.NORMAL,
     weapon: WeaponType.LASER, shipModel: ShipModel.INTERCEPTOR,
+    gameMode: 'STORY',
     weaponLevel: 1, droneLevel: 1, upgradePoints: 0,
     aiIntegrity: 100, maxIntegrity: 100, corruptionLevel: 0,
     specialCharge: 0, calibration: { thrustSensitivity: 1.2, turnSensitivity: 1.0, gravitationalForce: 1.0, speedFactor: 1.0 },
@@ -33,21 +33,7 @@ const App: React.FC = () => {
     return saved ? parseInt(saved, 10) : 0;
   });
 
-  const [showOpenWorld, setShowOpenWorld] = useState(false);
 
-  if (showOpenWorld) {
-    return (
-      <div className="relative">
-        <OpenWorldGame />
-        <button
-          onClick={() => setShowOpenWorld(false)}
-          className="absolute top-4 left-4 z-[200] px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/50 uppercase text-[10px] hover:bg-red-500 hover:text-white transition-all font-mono tracking-widest"
-        >
-          abort_simulation
-        </button>
-      </div>
-    );
-  }
 
   const handleStateUpdate = useCallback((update: Partial<SimulationState>) => {
     setState(prev => {
@@ -247,7 +233,7 @@ const App: React.FC = () => {
           </div>
 
           <div className="mt-4 px-20 py-4 border border-sky-500/30 text-sky-400 font-bold text-sm uppercase tracking-[0.3em] hover:bg-sky-500/10 transition-all cursor-pointer"
-            onClick={() => setShowOpenWorld(true)}
+            onClick={() => handleStateUpdate({ status: GameStatus.RUNNING, gameMode: 'OPEN_WORLD' })}
           >
             Initialize_Open_World_Sim
           </div>

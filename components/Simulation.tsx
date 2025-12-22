@@ -1,6 +1,6 @@
 
 import React, { useRef, useEffect, useCallback, useMemo } from 'react';
-import { Ship, Laser, Particle, SingularityWave, CompanionShip, EnemyShip, Planet, MatrixNode, ResourceShard, CrystalStructure, Megastructure, SpaceDebris, PowerUpItem, InfernalBeam, GoldenHub, KamikazeEnemy, MotherShip, getGoldenValue } from '../services/physics';
+import { Ship, Laser, Particle, SingularityWave, CompanionShip, EnemyShip, Planet, MatrixNode, ResourceShard, CrystalStructure, Megastructure, SpaceDebris, PowerUpItem, InfernalBeam, GoldenHub, KamikazeEnemy, MotherShip, getGoldenValue, Blackhole } from '../services/physics';
 import { GameStatus, SimulationState, WeaponType, ShipModel, MissionType } from '../types';
 import { PHYSICS, COLORS, WEAPON_CONFIGS, EnemyType, SHIP_MODELS } from '../constants';
 import { soundService } from '../services/sound';
@@ -12,7 +12,7 @@ interface SimulationProps extends SimulationState {
 
 const Simulation: React.FC<SimulationProps> = ({
   status, weapon, weaponLevel, shipModel, specialCharge, aiIntegrity, corruptionLevel,
-  explorationDistance, currentMission,
+  explorationDistance, currentMission, gameMode,
   onStateUpdate, onGameOver, calibration
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -41,7 +41,9 @@ const Simulation: React.FC<SimulationProps> = ({
     debris: SpaceDebris[];
     megastructures: Megastructure[];
     matrixNode: MatrixNode;
+
     resources: ResourceShard[];
+    blackholes: Blackhole[];
     camera: { x: number, y: number, zoom: number, shake: number };
     keys: Record<string, boolean>;
   }>({
@@ -58,6 +60,7 @@ const Simulation: React.FC<SimulationProps> = ({
     megastructures: Array.from({ length: 5 }, () => new Megastructure()),
     matrixNode: new MatrixNode(),
     resources: [],
+    blackholes: [],
     hubs: [],
     camera: { x: PHYSICS.MATRIX_NODE_X, y: PHYSICS.MATRIX_NODE_Y, zoom: 0.45, shake: 0 },
     keys: {},
@@ -98,6 +101,35 @@ const Simulation: React.FC<SimulationProps> = ({
     };
   }, []);
 
+  // Initialization based on Mode
+  useEffect(() => {
+    const ent = entitiesRef.current;
+    if (gameMode === 'OPEN_WORLD') {
+      // Clear story entities
+      ent.planets = [];
+      ent.megastructures = [];
+
+      // Generate Massive Open World
+      for (let i = 0; i < 30; i++) {
+        const angle = (Math.PI * 2 / 30) * i;
+        const dist = 5000 + Math.random() * 15000;
+        ent.megastructures.push(new Megastructure(
+          ent.ship.x + Math.cos(angle) * dist,
+          ent.ship.y + Math.sin(angle) * dist
+        ));
+      }
+      // Generate Blackholes
+      for (let i = 0; i < 5; i++) {
+        const x1 = 5000 + Math.random() * 40000;
+        const y1 = 5000 + Math.random() * 40000;
+        const x2 = 5000 + Math.random() * 40000;
+        const y2 = 5000 + Math.random() * 40000;
+        ent.blackholes.push(new Blackhole(x1, y1, x2, y2));
+        ent.blackholes.push(new Blackhole(x2, y2, x1, y1));
+      }
+    }
+  }, [gameMode]);
+
   useEffect(() => {
     let frame: number;
     let lastTime = performance.now();
@@ -106,7 +138,7 @@ const Simulation: React.FC<SimulationProps> = ({
       const delta = (now - lastTime) / 16.66;
       lastTime = now;
 
-      const { ship, companion, singularities, lasers, infernalBeam, enemies, particles, planets, crystalStructures, debris, megastructures, matrixNode, resources, camera, keys } = entitiesRef.current;
+      const { ship, companion, singularities, lasers, infernalBeam, enemies, particles, planets, crystalStructures, debris, megastructures, matrixNode, resources, camera, keys, blackholes } = entitiesRef.current;
       const canvas = canvasRef.current;
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
@@ -233,6 +265,41 @@ const Simulation: React.FC<SimulationProps> = ({
         camera.x += (ship.x - camera.x) * 0.1;
         camera.y += (ship.y - camera.y) * 0.1;
 
+        // Open World Logic
+        if (gameMode === 'OPEN_WORLD') {
+          // Blackholes
+          blackholes.forEach(bh => {
+            // Gravity
+            const dx = bh.x - ship.x, dy = bh.y - ship.y, dist = Math.hypot(dx, dy);
+            if (dist > 100 && dist < 5000) {
+              const f = (100000) / (dist * dist);
+              ship.xv += (dx / dist) * f; ship.yv += (dy / dist) * f;
+            }
+            // Teleport
+            if (bh.isInEventHorizon(ship.x, ship.y)) {
+              ship.x = bh.targetX + (Math.random() - 0.5) * 200;
+              ship.y = bh.targetY + (Math.random() - 0.5) * 200;
+              ship.xv *= 0.5; ship.yv *= 0.5;
+              companion.say("WORMHOLE TRAVERSAL CONFIRMED");
+              onStateUpdate({ messages: ["SYSTEM: Wormhole traversal complete."] });
+            }
+            if (dist < 1000) bh.discovered = true;
+          });
+
+          // Megastructure Gravity
+          megastructures.forEach(m => {
+            const dx = m.x - ship.x, dy = m.y - ship.y, dist = Math.hypot(dx, dy);
+            if (dist > 100 && dist < 2500) {
+              const f = (50000) / (dist * dist);
+              ship.xv += (dx / dist) * f; ship.yv += (dy / dist) * f;
+            }
+            if (dist < 2000 && !m.discovered) {
+              m.discovered = true;
+              onStateUpdate({ messages: [`DISCOVERY: ${m.type} Structure found.`] });
+            }
+          });
+        }
+
         // --- MISSION CONTROLLER ---
         if (nowMs - entitiesRef.current.lastMissionUpdate > 1000) {
           entitiesRef.current.lastMissionUpdate = nowMs;
@@ -293,6 +360,7 @@ const Simulation: React.FC<SimulationProps> = ({
         crystalStructures.forEach(c => c.draw(ctx));
         debris.forEach(d => d.draw(ctx));
         megastructures.forEach(m => m.draw(ctx));
+        blackholes.forEach(b => b.draw(ctx));
 
         resources.forEach((r, i) => {
           r.update(); r.draw(ctx);
@@ -332,7 +400,7 @@ const Simulation: React.FC<SimulationProps> = ({
 
         ship.draw(ctx);
         if (entitiesRef.current.infernalBeam) entitiesRef.current.infernalBeam.draw(ctx);
-        companion.update(ship.x, ship.y); companion.draw(ctx);
+        companion.update(ship.x, ship.y, enemies, megastructures); companion.draw(ctx);
 
         enemies.forEach((en, i) => {
           en.update(ship.x, ship.y); en.draw(ctx);

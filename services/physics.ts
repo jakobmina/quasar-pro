@@ -56,6 +56,26 @@ export class InfernalBeam {
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(this.maxDist, 0); ctx.stroke();
     ctx.restore();
   }
+
+}
+
+export class Blackhole {
+  x: number; y: number; radius: number; targetX: number; targetY: number;
+  discovered: boolean = false;
+  constructor(x: number, y: number, targetX: number, targetY: number) {
+    this.x = x; this.y = y; this.radius = 400; this.targetX = targetX; this.targetY = targetY;
+  }
+  isInEventHorizon(x: number, y: number) { return Math.hypot(x - this.x, y - this.y) < this.radius * 0.3; }
+  draw(ctx: CanvasRenderingContext2D) {
+    ctx.save(); ctx.translate(this.x, this.y);
+    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, this.radius);
+    gradient.addColorStop(0, '#000'); gradient.addColorStop(0.5, '#1e1b4b'); gradient.addColorStop(1, 'transparent');
+    ctx.fillStyle = gradient; ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#8b5cf6'; ctx.lineWidth = 3; ctx.setLineDash([10, 10]);
+    ctx.beginPath(); ctx.arc(0, 0, this.radius * 1.5, 0, Math.PI * 2); ctx.stroke();
+    if (this.discovered) { ctx.fillStyle = '#a855f7'; ctx.font = '12px monospace'; ctx.textAlign = 'center'; ctx.fillText('WORMHOLE', 0, -this.radius - 20); }
+    ctx.restore();
+  }
 }
 
 export class Planet {
@@ -336,9 +356,47 @@ export class ResourceShard {
 }
 
 export class Megastructure {
-  x: number; y: number; r: number = 200; health: number = 500;
-  constructor() { this.x = Math.random() * 12000; this.y = Math.random() * 12000; }
-  draw(ctx: CanvasRenderingContext2D) { ctx.strokeStyle = '#1e293b'; ctx.strokeRect(this.x - 200, this.y - 200, 400, 400); drawHealthBar(ctx, this.x, this.y, this.r, this.health, 500, '#1e293b'); }
+  x: number; y: number; r: number; health: number = 1000; type: 'STATION' | 'DERELICT' | 'CRYSTAL';
+  color: string; discovered: boolean = false; maxHealth: number = 1000;
+
+  constructor(x?: number, y?: number, type?: 'STATION' | 'DERELICT' | 'CRYSTAL') {
+    this.x = x ?? Math.random() * 12000;
+    this.y = y ?? Math.random() * 12000;
+    this.type = type ?? (['STATION', 'DERELICT', 'CRYSTAL'][Math.floor(Math.random() * 3)] as any);
+
+    const config = {
+      STATION: { r: 600, color: '#0ea5e9' },
+      DERELICT: { r: 400, color: '#ef4444' },
+      CRYSTAL: { r: 300, color: '#22c55e' }
+    }[this.type];
+
+    this.r = config.r;
+    this.color = config.color;
+  }
+
+  draw(ctx: CanvasRenderingContext2D) {
+    ctx.save(); ctx.translate(this.x, this.y);
+    ctx.strokeStyle = `${this.color}33`; ctx.lineWidth = 2; ctx.setLineDash([5, 5]);
+    ctx.beginPath(); ctx.arc(0, 0, this.r * 2, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = this.discovered ? this.color : '#334155'; ctx.strokeStyle = this.color; ctx.lineWidth = 4; ctx.setLineDash([]);
+
+    if (this.type === 'STATION') {
+      ctx.rotate(Date.now() * 0.0001);
+      ctx.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const angle = (Math.PI * 2 / 8) * i;
+        ctx[i === 0 ? 'moveTo' : 'lineTo'](Math.cos(angle) * this.r, Math.sin(angle) * this.r);
+      }
+      ctx.closePath(); ctx.stroke(); ctx.fill();
+    } else if (this.type === 'CRYSTAL') {
+      for (let i = 0; i < 6; i++) { ctx.rotate(Math.PI / 3); ctx.fillRect(-20, -this.r * 0.8, 40, this.r * 1.6); }
+    } else {
+      ctx.beginPath(); ctx.moveTo(0, -this.r); ctx.lineTo(this.r * 0.5, this.r * 0.5); ctx.lineTo(-this.r * 0.5, this.r * 0.5); ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+    ctx.restore();
+    if (this.discovered) { ctx.fillStyle = this.color; ctx.font = '14px monospace'; ctx.textAlign = 'center'; ctx.fillText(this.type, this.x, this.y - this.r - 30); }
+    drawHealthBar(ctx, this.x, this.y, this.r, this.health, this.maxHealth, this.color);
+  }
 }
 
 export class CrystalStructure {
@@ -348,12 +406,60 @@ export class CrystalStructure {
 }
 
 export class CompanionShip {
-  x: number; y: number;
-  update(px: number, py: number) {
-    this.x = px + Math.cos(Date.now() * 0.002) * 120;
-    this.y = py + Math.sin(Date.now() * 0.002) * 120;
+  x: number = 0; y: number = 0; xv: number = 0; yv: number = 0;
+  mode: 'FOLLOW' | 'DEFEND' | 'SCOUT' | 'ATTACK' = 'FOLLOW';
+  target: any = null; orbitAngle: number = 0;
+  messages: { text: string; time: number }[] = [];
+  lastMessageTime: number = 0;
+
+  say(message: string) {
+    const now = Date.now();
+    if (now - this.lastMessageTime < 3000) { this.lastMessageTime = now; this.messages.push({ text: message, time: now }); if (this.messages.length > 3) this.messages.shift(); }
   }
-  draw(ctx: CanvasRenderingContext2D) { ctx.strokeStyle = '#10b981'; ctx.strokeRect(this.x - 5, this.y - 5, 10, 10); }
+
+  update(px: number, py: number, enemies: EnemyShip[] = [], structures: Megastructure[] = []) {
+    // AI Logic
+    let targetX = px, targetY = py;
+    const nearestEnemy = enemies.reduce((acc, en) => { const d = Math.hypot(en.x - px, en.y - py); return d < acc.d ? { en, d } : acc; }, { en: null as any, d: Infinity });
+    const nearestStruct = structures.reduce((acc, st) => { const d = Math.hypot(st.x - px, st.y - py); return d < acc.d ? { st, d } : acc; }, { st: null as any, d: Infinity });
+
+    if (nearestEnemy.en && nearestEnemy.d < 600) {
+      this.mode = 'DEFEND'; this.target = nearestEnemy.en;
+    } else if (nearestStruct.st && nearestStruct.d < 1200 && !nearestStruct.st.discovered) {
+      this.mode = 'SCOUT'; this.target = nearestStruct.st;
+    } else {
+      this.mode = 'FOLLOW';
+    }
+
+    if (this.mode === 'FOLLOW') {
+      this.orbitAngle += 0.02; targetX = px + Math.cos(this.orbitAngle) * 150; targetY = py + Math.sin(this.orbitAngle) * 150;
+    } else if (this.mode === 'DEFEND' && this.target) {
+      const ang = Math.atan2(this.target.y - py, this.target.x - px); targetX = px + Math.cos(ang + Math.PI) * 100; targetY = py + Math.sin(ang + Math.PI) * 100;
+    } else if (this.mode === 'SCOUT' && this.target) {
+      const dx = this.target.x - px, dy = this.target.y - py, dist = Math.hypot(dx, dy); targetX = px + (dx / dist) * 300; targetY = py + (dy / dist) * 300;
+    }
+
+    const dx = targetX - this.x, dy = targetY - this.y;
+    this.xv += dx * 0.01; this.yv += dy * 0.01;
+    this.xv *= 0.9; this.yv *= 0.9;
+    this.x += this.xv; this.y += this.yv;
+  }
+
+  draw(ctx: CanvasRenderingContext2D) {
+    ctx.save(); ctx.translate(this.x, this.y);
+    const color = this.mode === 'DEFEND' ? '#ef4444' : this.mode === 'SCOUT' ? '#eab308' : '#10b981';
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.shadowBlur = 10; ctx.shadowColor = color;
+    ctx.beginPath();
+    if (this.mode === 'DEFEND') { for (let i = 0; i < 8; i++) { const a = (Math.PI * 2 / 8) * i, r = 10 + (i % 2) * 5; ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r); } }
+    else if (this.mode === 'SCOUT') { ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.moveTo(15, 0); ctx.arc(0, 0, 15, 0, Math.PI * 2); }
+    else { for (let i = 0; i < 6; i++) { const a = (Math.PI * 2 / 6) * i; ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * 10, Math.sin(a) * 10); } }
+    ctx.closePath(); ctx.stroke();
+    ctx.fillStyle = color; ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    ctx.fillStyle = '#10b981'; ctx.font = '10px monospace';
+    this.messages.forEach((msg, i) => { const age = Date.now() - msg.time; ctx.globalAlpha = Math.max(0, 1 - age / 3000); ctx.fillText(msg.text, this.x + 20, this.y - 20 - i * 15); });
+  }
 }
 
 export class PowerUpItem {

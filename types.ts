@@ -85,4 +85,5 @@ export interface SimulationState {
     progress: number;
     goal: number;
   };
+  gameMode: 'STORY' | 'OPEN_WORLD';
 }
