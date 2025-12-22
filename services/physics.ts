@@ -1,6 +1,6 @@
 
 import { PHYSICS, COLORS, EnemyType } from '../constants';
-import { PowerUpType, MissionType } from '../types';
+import { PowerUpType, MissionType, ShipModel } from '../types';
 
 const PHI = (1 + Math.sqrt(5)) / 2;
 
@@ -184,19 +184,103 @@ export class MotherShip extends EnemyShip {
 export class Ship {
   x: number; y: number; r: number = 12; angle: number = Math.PI / 2; xv: number = 0; yv: number = 0;
   color: string = '#0ea5e9'; hitTimer: number = 0;
-  constructor(color?: string) {
+  model: ShipModel;
+  weaponColor: string;
+
+  constructor(model: ShipModel = ShipModel.INTERCEPTOR, color: string = '#0ea5e9') {
     this.x = PHYSICS.WORLD_SIZE / 2; this.y = PHYSICS.WORLD_SIZE / 2;
-    if (color) this.color = color;
+    this.model = model;
+    this.color = color;
+    this.weaponColor = color;
+
+    // Model specific attribute adjustments
+    if (model === ShipModel.TITAN) this.r = 16;
+    if (model === ShipModel.SPECTER) this.r = 10;
   }
+
   draw(ctx: CanvasRenderingContext2D) {
     if (this.hitTimer > 0) {
       this.hitTimer--;
-      if (Math.floor(Date.now() / 50) % 2 === 0) return; // Flickering effect
+      if (Math.floor(Date.now() / 50) % 2 === 0) return;
     }
-    ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(-this.angle);
-    ctx.strokeStyle = this.color; ctx.lineWidth = 3;
-    ctx.shadowBlur = 10; ctx.shadowColor = this.color;
-    ctx.beginPath(); ctx.moveTo(this.r * 2.5, 0); ctx.lineTo(-this.r, -this.r); ctx.lineTo(-this.r * 0.5, 0); ctx.lineTo(-this.r, this.r); ctx.closePath(); ctx.stroke();
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(-this.angle);
+
+    // Dynamic Weapon Glow
+    ctx.shadowBlur = 15;
+    ctx.shadowColor = this.weaponColor;
+    ctx.strokeStyle = this.color;
+    ctx.lineWidth = 2;
+
+    switch (this.model) {
+      case ShipModel.TITAN:
+        // Heavy Hexagonal Tank
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const a = (Math.PI / 3) * i;
+          const r = i % 2 === 0 ? this.r : this.r * 0.8;
+          ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+        }
+        ctx.closePath();
+        ctx.stroke();
+        // Inner Shield Core
+        ctx.fillStyle = `rgba(${parseInt(this.weaponColor.slice(1, 3), 16)}, ${parseInt(this.weaponColor.slice(3, 5), 16)}, ${parseInt(this.weaponColor.slice(5, 7), 16)}, 0.3)`;
+        ctx.fill();
+        // Turret indicator
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(this.r * 1.5, 0); ctx.stroke();
+        break;
+
+      case ShipModel.SPECTER:
+        // Steering Stealth Needle
+        ctx.beginPath();
+        ctx.moveTo(this.r * 2.5, 0);
+        ctx.lineTo(-this.r * 1.5, -this.r * 0.8);
+        ctx.lineTo(-this.r * 0.5, 0);
+        ctx.lineTo(-this.r * 1.5, this.r * 0.8);
+        ctx.closePath();
+        ctx.stroke();
+        // Engine Glows
+        ctx.fillStyle = this.weaponColor;
+        ctx.beginPath(); ctx.arc(-this.r, -this.r * 0.4, 2, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(-this.r, this.r * 0.4, 2, 0, Math.PI * 2); ctx.fill();
+        break;
+
+      case ShipModel.VORTEX:
+        // Rotating Rings
+        const rot = Date.now() * 0.005;
+        // Outer Ring
+        ctx.beginPath();
+        ctx.arc(0, 0, this.r, 0, Math.PI * 2);
+        ctx.stroke();
+        // Inner Rotating Geometry
+        ctx.save();
+        ctx.rotate(rot);
+        ctx.strokeStyle = this.weaponColor;
+        ctx.beginPath(); ctx.moveTo(this.r, 0); ctx.lineTo(-this.r, 0); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, this.r); ctx.lineTo(0, -this.r); ctx.stroke();
+        ctx.restore();
+        // Core
+        ctx.fillStyle = this.color;
+        ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI * 2); ctx.fill();
+        break;
+
+      case ShipModel.INTERCEPTOR:
+      default:
+        // Classic Agile Fighter
+        ctx.beginPath();
+        ctx.moveTo(this.r * 2.5, 0);
+        ctx.lineTo(-this.r, -this.r);
+        ctx.lineTo(-this.r * 0.5, 0);
+        ctx.lineTo(-this.r, this.r);
+        ctx.closePath();
+        ctx.stroke();
+        // Weapon hardpoint visuals
+        ctx.fillStyle = this.weaponColor;
+        ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill();
+        break;
+    }
+
     ctx.restore();
   }
 }

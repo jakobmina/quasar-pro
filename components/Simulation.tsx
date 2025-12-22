@@ -45,7 +45,7 @@ const Simulation: React.FC<SimulationProps> = ({
     camera: { x: number, y: number, zoom: number, shake: number };
     keys: Record<string, boolean>;
   }>({
-    ship: new Ship(SHIP_MODELS[shipModel].color),
+    ship: new Ship(shipModel, SHIP_MODELS[shipModel].color),
     companion: new CompanionShip(),
     singularities: [],
     lasers: [],
@@ -137,6 +137,14 @@ const Simulation: React.FC<SimulationProps> = ({
       }
 
       if (status === GameStatus.RUNNING) {
+        // --- SYNC VISUALS ---
+        ship.model = shipModel;
+        ship.weaponColor = WEAPON_CONFIGS[weapon].color;
+        // Sync radius/physics with visual model change if needed
+        if (shipModel === ShipModel.TITAN) ship.r = 16;
+        else if (shipModel === ShipModel.SPECTER) ship.r = 10;
+        else ship.r = 12;
+
         // --- CONTROLES (CON REVERSA) ---
         const config = SHIP_MODELS[shipModel];
         const thrust = config.thrust * calibration.thrustSensitivity;

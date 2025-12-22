@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { GameStatus, SimulationState, Difficulty, WeaponType, ShipModel, MissionType } from './types';
 import { PHYSICS, SHIP_MODELS, WEAPON_CONFIGS } from './constants';
 import Simulation from './components/Simulation';
+import OpenWorldGame from './components/OpenWorldGame';
 
 const App: React.FC = () => {
   const [state, setState] = useState<SimulationState>({
@@ -31,6 +32,22 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('aether_high_score');
     return saved ? parseInt(saved, 10) : 0;
   });
+
+  const [showOpenWorld, setShowOpenWorld] = useState(false);
+
+  if (showOpenWorld) {
+    return (
+      <div className="relative">
+        <OpenWorldGame />
+        <button
+          onClick={() => setShowOpenWorld(false)}
+          className="absolute top-4 left-4 z-[200] px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/50 uppercase text-[10px] hover:bg-red-500 hover:text-white transition-all font-mono tracking-widest"
+        >
+          abort_simulation
+        </button>
+      </div>
+    );
+  }
 
   const handleStateUpdate = useCallback((update: Partial<SimulationState>) => {
     setState(prev => {
@@ -228,42 +245,52 @@ const App: React.FC = () => {
           >
             Initialize_Stabilization
           </div>
-        </div>
-      )}
 
-      {state.status === GameStatus.PAUSED && (
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-md z-[150] flex flex-col items-center justify-center">
-          <h2 className="text-6xl font-black italic text-white mb-12 tracking-tighter">SIMULATION_PAUSED</h2>
-          <div className="flex gap-6">
-            <button
-              onClick={() => handleStateUpdate({ status: GameStatus.RUNNING })}
-              className="px-10 py-4 bg-sky-500 text-black font-bold uppercase tracking-widest hover:bg-white transition-all"
-            >
-              Resume_Neural_Link
-            </button>
-            <button
-              onClick={() => window.location.reload()}
-              className="px-10 py-4 border border-white/20 text-white font-bold uppercase tracking-widest hover:bg-white/10 transition-all"
-            >
-              Abort_Mission
-            </button>
+          <div className="mt-4 px-20 py-4 border border-sky-500/30 text-sky-400 font-bold text-sm uppercase tracking-[0.3em] hover:bg-sky-500/10 transition-all cursor-pointer"
+            onClick={() => setShowOpenWorld(true)}
+          >
+            Initialize_Open_World_Sim
           </div>
         </div>
       )}
 
-      {state.status === GameStatus.GAME_OVER && (
-        <div className="absolute inset-0 bg-black/90 backdrop-blur-3xl z-[110] flex flex-col items-center justify-center text-center p-10">
-          <div className="text-rose-500 font-black text-8xl italic mb-6 uppercase tracking-tighter">Connection_Lost</div>
-          <div className="text-white text-2xl font-bold mono mb-16">Score: {state.score}</div>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-14 py-6 bg-rose-600 text-white font-black uppercase tracking-widest hover:bg-white hover:text-rose-600 transition-all"
-          >
-            Retry_Upload
-          </button>
-        </div>
-      )}
-    </div>
+      {
+        state.status === GameStatus.PAUSED && (
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-md z-[150] flex flex-col items-center justify-center">
+            <h2 className="text-6xl font-black italic text-white mb-12 tracking-tighter">SIMULATION_PAUSED</h2>
+            <div className="flex gap-6">
+              <button
+                onClick={() => handleStateUpdate({ status: GameStatus.RUNNING })}
+                className="px-10 py-4 bg-sky-500 text-black font-bold uppercase tracking-widest hover:bg-white transition-all"
+              >
+                Resume_Neural_Link
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                className="px-10 py-4 border border-white/20 text-white font-bold uppercase tracking-widest hover:bg-white/10 transition-all"
+              >
+                Abort_Mission
+              </button>
+            </div>
+          </div>
+        )
+      }
+
+      {
+        state.status === GameStatus.GAME_OVER && (
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-3xl z-[110] flex flex-col items-center justify-center text-center p-10">
+            <div className="text-rose-500 font-black text-8xl italic mb-6 uppercase tracking-tighter">Connection_Lost</div>
+            <div className="text-white text-2xl font-bold mono mb-16">Score: {state.score}</div>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-14 py-6 bg-rose-600 text-white font-black uppercase tracking-widest hover:bg-white hover:text-rose-600 transition-all"
+            >
+              Retry_Upload
+            </button>
+          </div>
+        )
+      }
+    </div >
   );
 };
 
