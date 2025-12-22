@@ -1,9 +1,25 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { GameStatus, SimulationState, Difficulty, WeaponType, ShipModel, MissionType } from './types';
 import { PHYSICS, SHIP_MODELS, WEAPON_CONFIGS } from './constants';
 import Simulation from './components/Simulation';
+import TouchControls, { TouchInput } from './components/TouchControls';
 
 const App: React.FC = () => {
+  // Detect mobile/touch device
+  const isMobile = useMemo(() => {
+    return typeof navigator !== 'undefined' && (
+      navigator.maxTouchPoints > 0 ||
+      /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+    );
+  }, []);
+
+  // Touch input state
+  const [touchInput, setTouchInput] = useState<TouchInput>({
+    angle: 0,
+    thrust: 0,
+    fire: false,
+    special: false
+  });
   const [state, setState] = useState<SimulationState>({
     score: 0, lives: 5, status: GameStatus.INITIAL, difficulty: Difficulty.NORMAL,
     weapon: WeaponType.LASER, shipModel: ShipModel.INTERCEPTOR,
@@ -103,7 +119,15 @@ const App: React.FC = () => {
       </div>
 
       <div className="flex-1 relative bg-black">
-        <Simulation {...state} onStateUpdate={handleStateUpdate} onGameOver={() => { }} />
+        <Simulation {...state} onStateUpdate={handleStateUpdate} onGameOver={() => { }} touchInput={isMobile ? touchInput : undefined} />
+
+        {/* Touch Controls for Mobile */}
+        {isMobile && (
+          <TouchControls
+            onInputChange={setTouchInput}
+            enabled={state.status === GameStatus.RUNNING}
+          />
+        )}
 
         {/* Messages Panel */}
         <div className={`absolute bottom-32 left-6 w-72 transition-all duration-300 ${hudVisibility.messages ? 'h-32 opacity-100' : 'h-8 opacity-50 overflow-hidden'}`}>

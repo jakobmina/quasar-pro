@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Aether Rescue</string>
+    <string name="title_activity_main">Aether Rescue</string>
+    <string name="package_name">com.quasar.aetherrescue</string>
+    <string name="custom_url_scheme">com.quasar.aetherrescue</string>
+</resources>

@@ -4,16 +4,18 @@ import { Ship, Laser, Particle, SingularityWave, CompanionShip, EnemyShip, Plane
 import { GameStatus, SimulationState, WeaponType, ShipModel, MissionType } from '../types';
 import { PHYSICS, COLORS, WEAPON_CONFIGS, EnemyType, SHIP_MODELS } from '../constants';
 import { soundService } from '../services/sound';
+import { TouchInput } from './TouchControls';
 
 interface SimulationProps extends SimulationState {
   onStateUpdate: (state: Partial<SimulationState>) => void;
   onGameOver: () => void;
+  touchInput?: TouchInput;
 }
 
 const Simulation: React.FC<SimulationProps> = ({
   status, weapon, weaponLevel, shipModel, specialCharge, aiIntegrity, corruptionLevel,
   explorationDistance, currentMission, gameMode,
-  onStateUpdate, onGameOver, calibration
+  onStateUpdate, onGameOver, calibration, touchInput
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const radarCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -177,30 +179,41 @@ const Simulation: React.FC<SimulationProps> = ({
         else if (shipModel === ShipModel.SPECTER) ship.r = 10;
         else ship.r = 12;
 
-        // --- CONTROLES (CON REVERSA) ---
+        // --- CONTROLES (CON REVERSA Y TOUCH) ---
         const config = SHIP_MODELS[shipModel];
         const thrust = config.thrust * calibration.thrustSensitivity;
         const turn = 0.08 * calibration.turnSensitivity;
 
-        const isThrusting = keys['KeyW'] || keys['ArrowUp'] || keys['KeyS'] || keys['ArrowDown'];
+        // Touch controls override keyboard when active
+        const hasTouchThrust = touchInput && touchInput.thrust > 0.1;
+        const isThrusting = hasTouchThrust || keys['KeyW'] || keys['ArrowUp'] || keys['KeyS'] || keys['ArrowDown'];
         soundService.setThrust(isThrusting);
 
-        if (keys['KeyW'] || keys['ArrowUp']) {
-          ship.xv += Math.cos(ship.angle) * thrust;
-          ship.yv -= Math.sin(ship.angle) * thrust;
+        if (hasTouchThrust) {
+          // Joystick controls: angle directly from joystick, thrust proportional
+          ship.angle = touchInput.angle;
+          ship.xv += Math.cos(ship.angle) * thrust * touchInput.thrust;
+          ship.yv -= Math.sin(ship.angle) * thrust * touchInput.thrust;
+        } else {
+          // Keyboard controls
+          if (keys['KeyW'] || keys['ArrowUp']) {
+            ship.xv += Math.cos(ship.angle) * thrust;
+            ship.yv -= Math.sin(ship.angle) * thrust;
+          }
+          if (keys['KeyS'] || keys['ArrowDown']) {
+            ship.xv -= Math.cos(ship.angle) * (thrust * 0.5); // Reversa al 50% de potencia
+            ship.yv += Math.sin(ship.angle) * (thrust * 0.5);
+          }
+          if (keys['KeyA'] || keys['ArrowLeft']) ship.angle += turn;
+          if (keys['KeyD'] || keys['ArrowRight']) ship.angle -= turn;
         }
-        if (keys['KeyS'] || keys['ArrowDown']) {
-          ship.xv -= Math.cos(ship.angle) * (thrust * 0.5); // Reversa al 50% de potencia
-          ship.yv += Math.sin(ship.angle) * (thrust * 0.5);
-        }
-        if (keys['KeyA'] || keys['ArrowLeft']) ship.angle += turn;
-        if (keys['KeyD'] || keys['ArrowRight']) ship.angle -= turn;
 
-        // --- MANEJO DE ARMAS ---
+        // --- MANEJO DE ARMAS (KEYBOARD + TOUCH) ---
         const nowMs = Date.now();
         const weap = WEAPON_CONFIGS[weapon];
+        const isFiring = keys['Space'] || (touchInput && touchInput.fire);
 
-        if (keys['Space']) {
+        if (isFiring) {
           if (weapon === WeaponType.INFERNAL_RAY) {
             if (!entitiesRef.current.infernalBeam) {
               entitiesRef.current.infernalBeam = new InfernalBeam(ship.x, ship.y, ship.angle);
@@ -254,7 +267,9 @@ const Simulation: React.FC<SimulationProps> = ({
           entitiesRef.current.infernalBeam = null;
         }
 
-        if (keys['KeyQ'] && specialCharge >= 100) triggerQuantumPurge();
+        // Special Attack (Keyboard Q or Touch Special Button)
+        const isSpecialPressed = keys['KeyQ'] || (touchInput && touchInput.special);
+        if (isSpecialPressed && specialCharge >= 100) triggerQuantumPurge();
 
         ship.x += ship.xv; ship.y += ship.yv;
         ship.xv *= PHYSICS.FRICTION; ship.yv *= PHYSICS.FRICTION;
@@ -307,7 +322,7 @@ const Simulation: React.FC<SimulationProps> = ({
             const progress = (explorationDistance / currentMission.goal) * 100;
             if (explorationDistance >= currentMission.goal) {
               onStateUpdate({
-                messages: [`MISSION_COMPLETE: ${currentMission.title}`, "AETHER: You found a stable pocket."],
+                messages: [`MISSION_COMPLETE: ${currentMission.title} `, "AETHER: You found a stable pocket."],
                 currentMission: {
                   type: MissionType.STABILIZE_HUB,
                   title: "Hub Stabilization",
@@ -549,7 +564,7 @@ const Simulation: React.FC<SimulationProps> = ({
           <div className="w-full bg-amber-500/10 h-1.5 rounded-full overflow-hidden relative">
             <div
               className="bg-amber-500 h-full transition-all duration-1000 ease-out"
-              style={{ width: `${Math.min(100, (explorationDistance / currentMission.goal) * 100)}%` }}
+              style={{ width: `${Math.min(100, (explorationDistance / currentMission.goal) * 100)}% ` }}
             />
             <div className="absolute inset-0 flex items-center justify-center text-[8px] text-white font-bold mix-blend-difference">
               {Math.floor(explorationDistance)} / {currentMission.goal} LY
