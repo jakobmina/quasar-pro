@@ -1,6 +1,6 @@
 
 import React, { useRef, useEffect, useCallback, useMemo } from 'react';
-import { Ship, Laser, Particle, SingularityWave, CompanionShip, EnemyShip, Planet, MatrixNode, ResourceShard, CrystalStructure, Megastructure, SpaceDebris, PowerUpItem, InfernalBeam, GoldenHub, KamikazeEnemy, MotherShip, getGoldenValue, Blackhole } from '../services/physics';
+import { Ship, Laser, Particle, SingularityWave, CompanionShip, EnemyShip, Planet, MatrixNode, ResourceShard, CrystalStructure, Megastructure, SpaceDebris, PowerUpItem, InfernalBeam, GoldenHub, KamikazeEnemy, MotherShip, getGoldenValue, Blackhole, EntityPool, EntityType, generate_sector_order } from '../services/physics';
 import { GameStatus, SimulationState, WeaponType, ShipModel, MissionType } from '../types';
 import { PHYSICS, COLORS, WEAPON_CONFIGS, EnemyType, SHIP_MODELS } from '../constants';
 import { soundService } from '../services/sound';
@@ -181,7 +181,6 @@ const Simulation: React.FC<SimulationProps> = ({
         ctx.save();
         ctx.translate(width / 2, height / 2);
         ctx.scale(camera.zoom, camera.zoom);
-        ctx.translate(-camera.x, -camera.y);
         ctx.translate(-camera.x, -camera.y);
         planets.forEach(p => p.draw(ctx));
         entitiesRef.current.hubs.forEach(h => h.draw(ctx));
