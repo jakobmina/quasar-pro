@@ -32,7 +32,9 @@ const App: React.FC = () => {
     specialCharge: 0, calibration: { thrustSensitivity: 1.2, turnSensitivity: 1.0, gravitationalForce: 1.0, speedFactor: 1.0 },
     messages: ["SYSTEM_INIT: Aether Rescue Protocol Online", "AETHER: Help me Pilot... I'm fragmenting."],
     explorationDistance: 0,
-    currentMission: {
+    infernalRayTemperature: 0,
+    username: localStorage.getItem('aether_username') || '',
+    currentMission: JSON.parse(localStorage.getItem('aether_current_mission') || 'null') || {
       type: MissionType.EXPLORE,
       title: "First Contact",
       description: "Explore the neural space and locate a Golden Hub.",
@@ -81,13 +83,18 @@ const App: React.FC = () => {
 
   const handleStateUpdate = useCallback((update: Partial<SimulationState>) => {
     setState(prev => {
-      const nextIntegrity = Math.min(prev.maxIntegrity, Math.max(0, prev.aiIntegrity + (update.aiIntegrity || 0)));
+      const nextIntegrity = Math.min(prev.maxIntegrity || 100, Math.max(0, prev.aiIntegrity + (update.aiIntegrity || 0)));
       const nextCorruption = Math.min(100, Math.max(0, prev.corruptionLevel + (update.corruptionLevel || 0)));
       const nextScore = prev.score + (update.score || 0);
       const nextCharge = Math.min(100, prev.specialCharge + (update.specialCharge || 0));
       const nextExploration = prev.explorationDistance + (update.explorationDistance || 0);
+      const nextTemp = update.infernalRayTemperature !== undefined ? update.infernalRayTemperature : prev.infernalRayTemperature;
 
       const nextStatus = (nextIntegrity <= 0 || (update.lives !== undefined && prev.lives + update.lives <= 0)) ? GameStatus.GAME_OVER : (update.status || prev.status);
+
+      if (update.currentMission) {
+        localStorage.setItem('aether_current_mission', JSON.stringify(update.currentMission));
+      }
 
       return {
         ...prev,
@@ -95,6 +102,7 @@ const App: React.FC = () => {
         score: nextScore, aiIntegrity: nextIntegrity, corruptionLevel: nextCorruption,
         specialCharge: nextCharge, status: nextStatus,
         explorationDistance: nextExploration,
+        infernalRayTemperature: nextTemp,
         lives: update.lives !== undefined ? prev.lives + update.lives : prev.lives
       };
     });
@@ -215,6 +223,14 @@ const App: React.FC = () => {
                 <span className="text-[10px] text-sky-400 font-bold">LVL_{state.weaponLevel}</span>
               </div>
               <div className="text-xs font-bold mono text-sky-200">{WEAPON_CONFIGS[state.weapon].name}</div>
+              {state.weapon === WeaponType.INFERNAL_RAY && (
+                <div className="mt-1 w-full h-1 bg-slate-800 rounded-full overflow-hidden border border-white/5">
+                  <div
+                    className={`h-full transition-all duration-150 ${state.infernalRayTemperature > 80 ? 'bg-rose-500 shadow-[0_0_8px_#f43f5e]' : 'bg-orange-400'}`}
+                    style={{ width: `${state.infernalRayTemperature}%` }}
+                  />
+                </div>
+              )}
             </div>
             <div className="border border-white/10 p-2 rounded bg-white/5">
               <div className="text-[8px] uppercase text-slate-500 mono">Hull_Model</div>
@@ -242,81 +258,105 @@ const App: React.FC = () => {
       </div>
 
       {state.status === GameStatus.INITIAL && (
-        <div className="absolute inset-0 bg-[#020617] z-[100] flex flex-col items-center justify-center p-20 overflow-y-auto">
-          <h1 className="text-8xl font-black italic uppercase tracking-tighter text-white mb-8 drop-shadow-[0_0_20px_rgba(14,165,233,0.5)] text-center">AETHER_RESCUE</h1>
+        <div className="absolute inset-0 bg-[#020617] z-[100] flex flex-col items-center justify-center p-10 overflow-y-auto">
+          {!state.username ? (
+            <div className="w-full max-w-md bg-slate-900/50 p-8 border border-sky-500/20 rounded shadow-2xl backdrop-blur-xl">
+              <h2 className="text-2xl font-black italic text-sky-400 mb-6 uppercase tracking-widest">Pilot_Registration</h2>
+              <input
+                type="text"
+                placeholder="ENTER_NAME_IDENTIFIER"
+                className="w-full bg-black border border-sky-500/30 p-4 mono text-sky-400 mb-6 focus:outline-none focus:border-sky-400 transition-all uppercase"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const name = (e.target as HTMLInputElement).value.trim();
+                    if (name) {
+                      localStorage.setItem('aether_username', name);
+                      handleStateUpdate({ username: name });
+                    }
+                  }
+                }}
+              />
+              <div className="text-[10px] mono text-sky-500/40 uppercase">Press_Enter_To_Link_Neural_Profile</div>
+            </div>
+          ) : (
+            <>
+              <div className="text-sky-500 font-bold mono uppercase text-xs tracking-[0.5em] mb-4">Welcome_Back: {state.username}</div>
+              <h1 className="text-8xl font-black italic uppercase tracking-tighter text-white mb-8 drop-shadow-[0_0_20px_rgba(14,165,233,0.5)] text-center">AETHER_RESCUE</h1>
 
-          <div className="grid grid-cols-2 gap-12 w-full max-w-5xl mb-12">
-            <div className="space-y-4">
-              <h3 className="text-sky-500 font-bold mono uppercase text-xs tracking-[0.3em]">1. Select_Neural_Hull</h3>
-              <div className="grid grid-cols-2 gap-2 h-40 overflow-y-auto custom-scrollbar pr-2">
-                {availableShips.map(ship => (
-                  <div key={ship.id} className="relative group">
+              <div className="grid grid-cols-2 gap-12 w-full max-w-5xl mb-12">
+                <div className="space-y-4">
+                  <h3 className="text-sky-500 font-bold mono uppercase text-xs tracking-[0.3em]">1. Select_Neural_Hull</h3>
+                  <div className="grid grid-cols-2 gap-2 h-40 overflow-y-auto custom-scrollbar pr-2">
+                    {availableShips.map(ship => (
+                      <div key={ship.id} className="relative group">
+                        <button
+                          onClick={() => setState(s => ({ ...s, selectedShipConfig: ship, shipModel: ship.model }))}
+                          className={`w-full p-4 border-2 transition-all text-xs font-black uppercase tracking-widest ${state.selectedShipConfig?.id === ship.id ? 'border-white bg-white/10' : 'border-white/10 bg-black/40 text-slate-500'}`}
+                          style={{ color: state.selectedShipConfig?.id === ship.id ? ship.color : '' }}
+                        >
+                          {ship.name || ship.model}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingShip(ship);
+                            setIsCustomizing(true);
+                          }}
+                          className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 p-1 bg-sky-500 text-black text-[8px] font-bold rounded-sm transition-opacity"
+                        >
+                          EDIT
+                        </button>
+                      </div>
+                    ))}
                     <button
-                      onClick={() => setState(s => ({ ...s, selectedShipConfig: ship, shipModel: ship.model }))}
-                      className={`w-full p-4 border-2 transition-all text-xs font-black uppercase tracking-widest ${state.selectedShipConfig?.id === ship.id ? 'border-white bg-white/10' : 'border-white/10 bg-black/40 text-slate-500'}`}
-                      style={{ color: state.selectedShipConfig?.id === ship.id ? ship.color : '' }}
-                    >
-                      {ship.name || ship.model}
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingShip(ship);
+                      onClick={() => {
+                        setEditingShip(undefined);
                         setIsCustomizing(true);
                       }}
-                      className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 p-1 bg-sky-500 text-black text-[8px] font-bold rounded-sm transition-opacity"
+                      className="p-4 border-2 border-dashed border-sky-500/30 text-sky-400 text-xs font-black uppercase tracking-widest hover:bg-sky-500/10 transition-all"
                     >
-                      EDIT
+                      [+] NEW_HULL
                     </button>
                   </div>
-                ))}
-                <button
-                  onClick={() => {
-                    setEditingShip(undefined);
-                    setIsCustomizing(true);
-                  }}
-                  className="p-4 border-2 border-dashed border-sky-500/30 text-sky-400 text-xs font-black uppercase tracking-widest hover:bg-sky-500/10 transition-all"
-                >
-                  [+] NEW_HULL
-                </button>
-              </div>
-            </div>
+                </div>
 
-            <div className="space-y-4">
-              <h3 className="text-sky-500 font-bold mono uppercase text-xs tracking-[0.3em]">2. Select_Armament</h3>
-              <div className="grid grid-cols-2 gap-2">
-                {Object.keys(WEAPON_CONFIGS).map(w => (
-                  <button
-                    key={w}
-                    onClick={() => setState(s => ({ ...s, weapon: w as WeaponType }))}
-                    className={`p-4 border-2 transition-all text-xs font-black uppercase tracking-widest ${state.weapon === w ? 'border-white bg-white/10 text-white' : 'border-white/10 bg-black/40 text-slate-500'}`}
-                  >
-                    {w.replace('_', ' ')}
-                  </button>
-                ))}
+                <div className="space-y-4">
+                  <h3 className="text-sky-500 font-bold mono uppercase text-xs tracking-[0.3em]">2. Select_Armament</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {Object.keys(WEAPON_CONFIGS).map(w => (
+                      <button
+                        key={w}
+                        onClick={() => setState(s => ({ ...s, weapon: w as WeaponType }))}
+                        className={`p-4 border-2 transition-all text-xs font-black uppercase tracking-widest ${state.weapon === w ? 'border-white bg-white/10 text-white' : 'border-white/10 bg-black/40 text-slate-500'}`}
+                      >
+                        {w.replace('_', ' ')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          {isCustomizing && (
-            <ShipCustomizer
-              onSave={handleSaveShip}
-              onCancel={() => setIsCustomizing(false)}
-              initialConfig={editingShip}
-            />
+              {isCustomizing && (
+                <ShipCustomizer
+                  onSave={handleSaveShip}
+                  onCancel={() => setIsCustomizing(false)}
+                  initialConfig={editingShip}
+                />
+              )}
+
+              <div className="px-20 py-8 bg-sky-500 text-black font-black text-xl uppercase tracking-[0.4em] hover:bg-white transition-all shadow-[0_0_60px_rgba(14,165,233,0.4)] cursor-pointer"
+                onClick={() => handleStateUpdate({ status: GameStatus.RUNNING })}
+              >
+                Initialize_Stabilization
+              </div>
+
+              <div className="mt-4 px-20 py-4 border border-sky-500/30 text-sky-400 font-bold text-sm uppercase tracking-[0.3em] hover:bg-sky-500/10 transition-all cursor-pointer"
+                onClick={() => handleStateUpdate({ status: GameStatus.RUNNING, gameMode: 'OPEN_WORLD' })}
+              >
+                Initialize_Open_World_Sim
+              </div>
+            </>
           )}
-
-          <div className="px-20 py-8 bg-sky-500 text-black font-black text-xl uppercase tracking-[0.4em] hover:bg-white transition-all shadow-[0_0_60px_rgba(14,165,233,0.4)] cursor-pointer"
-            onClick={() => handleStateUpdate({ status: GameStatus.RUNNING })}
-          >
-            Initialize_Stabilization
-          </div>
-
-          <div className="mt-4 px-20 py-4 border border-sky-500/30 text-sky-400 font-bold text-sm uppercase tracking-[0.3em] hover:bg-sky-500/10 transition-all cursor-pointer"
-            onClick={() => handleStateUpdate({ status: GameStatus.RUNNING, gameMode: 'OPEN_WORLD' })}
-          >
-            Initialize_Open_World_Sim
-          </div>
         </div>
       )}
 

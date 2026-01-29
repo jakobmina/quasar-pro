@@ -35,6 +35,12 @@ export const PHYSICS = {
   },
   POWERUP_CONFIGS: {
     [PowerUpType.QUANTUM_CORE]: { color: '#a855f7', label: 'Q_CORE' }
+  },
+  INFERNAL_RAY_CONFIG: {
+    MAX_TEMP: 100,
+    HEAT_UP_RATE: 0.8,
+    COOL_DOWN_RATE: 0.4,
+    OVERHEAT_PENALTY: 2000 // ms
   }
 };
 

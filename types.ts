@@ -94,5 +94,7 @@ export interface SimulationState {
     progress: number;
     goal: number;
   };
+  username?: string;
+  infernalRayTemperature: number;
   gameMode: 'STORY' | 'OPEN_WORLD';
 }

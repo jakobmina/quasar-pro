@@ -48,10 +48,18 @@ const Simulation: React.FC<SimulationProps> = ({
 
     resources: ResourceShard[];
     blackholes: Blackhole[];
-    hubs: any[]; // Changed to any[] as Hub might not be fully defined in physics.ts view
+    hubs: any[];
     camera: { x: number, y: number, zoom: number, shake: number };
     keys: Record<string, boolean>;
     lastMissionUpdate: number;
+
+    // Object Pools
+    laserPool: EntityPool<Laser>;
+    particlePool: EntityPool<Particle>;
+    enemyPool: EntityPool<EnemyShip>;
+    shardPool: EntityPool<ResourceShard>;
+
+    overheatTimer: number;
   }>({
     ship: new Ship(initialShipConfig),
     companion: new CompanionShip(),
@@ -70,12 +78,25 @@ const Simulation: React.FC<SimulationProps> = ({
     hubs: [],
     camera: { x: PHYSICS.MATRIX_NODE_X, y: PHYSICS.MATRIX_NODE_Y, zoom: 0.45, shake: 0 },
     keys: {},
-    lastMissionUpdate: 0
+    lastMissionUpdate: 0,
+
+    laserPool: new EntityPool((x, y) => new Laser(x, y, 0, '#fff', 1), 100),
+    particlePool: new EntityPool((x, y) => new Particle(x, y, '#fff'), 500),
+    enemyPool: new EntityPool((x, y) => new EnemyShip(x, y, EnemyType.DRONE), 50),
+    shardPool: new EntityPool((x, y) => new ResourceShard(x, y), 50),
+
+    overheatTimer: 0
   });
 
   const explodeEntity = useCallback((x: number, y: number, color: string, amount: number, isData: boolean = false) => {
+    const { particles, particlePool } = entitiesRef.current;
     for (let i = 0; i < amount; i++) {
-      entitiesRef.current.particles.push(new Particle(x, y, color, true, isData));
+      const p = particlePool.get(x, y);
+      p.color = color;
+      p.isData = isData;
+      p.life = 1.0;
+      p.active = true;
+      particles.push(p);
     }
     if (amount >= 30) soundService.playExplosion(amount > 45);
   }, []);
@@ -217,52 +238,72 @@ const Simulation: React.FC<SimulationProps> = ({
         const weap = WEAPON_CONFIGS[weapon];
         const isFiring = keys['Space'] || (touchInput && touchInput.fire);
 
-        if (isFiring) {
+        const { INFERNAL_RAY_CONFIG } = PHYSICS as any;
+        if (entitiesRef.current.overheatTimer > 0) {
+          entitiesRef.current.overheatTimer -= 16.6;
+          entitiesRef.current.infernalBeam = null;
+        }
+
+        if (isFiring && entitiesRef.current.overheatTimer <= 0) {
           if (weapon === WeaponType.INFERNAL_RAY) {
             if (!entitiesRef.current.infernalBeam) {
               entitiesRef.current.infernalBeam = new InfernalBeam(ship.x, ship.y, ship.angle);
             } else {
               entitiesRef.current.infernalBeam.update(ship.x, ship.y, ship.angle);
             }
-            // Daño del rayo infernal aumenta con el tiempo de contacto
-            const beamDamage = weap.damage + (entitiesRef.current.infernalBeam.duration * 0.015);
 
-            // Colisiones del rayo con enemigos y estructuras
-            [...enemies, ...crystalStructures, ...debris, ...megastructures].forEach((target: any, i) => {
-              const dx = target.x - ship.x;
-              const dy = target.y - ship.y;
-              const dist = Math.hypot(dx, dy);
-              const angleToTarget = Math.atan2(-dy, dx);
-              const angleDiff = Math.abs(angleToTarget - ship.angle);
+            const newTemp = Math.min(INFERNAL_RAY_CONFIG.MAX_TEMP, (onStateUpdate as any).infernalRayTemperature + INFERNAL_RAY_CONFIG.HEAT_UP_RATE);
+            onStateUpdate({ infernalRayTemperature: newTemp });
 
-              if (dist < 1200 && (angleDiff < 0.12 || angleDiff > Math.PI * 1.95)) {
-                target.health -= beamDamage;
-                if (Math.random() > 0.8) explodeEntity(target.x, target.y, '#fff', 1, true);
-                if (target.health <= 0) {
-                  if (target instanceof EnemyShip) {
-                    onStateUpdate({ score: target.config.score, specialCharge: 2 });
-                    enemies.splice(enemies.indexOf(target), 1);
+            if (newTemp >= INFERNAL_RAY_CONFIG.MAX_TEMP) {
+              entitiesRef.current.overheatTimer = INFERNAL_RAY_CONFIG.OVERHEAT_PENALTY;
+              soundService.playDamage();
+              entitiesRef.current.infernalBeam = null;
+            } else {
+              const beamDamage = weap.damage + (entitiesRef.current.infernalBeam.duration * 0.015);
+              [...enemies, ...crystalStructures, ...debris, ...megastructures].forEach((target: any) => {
+                const dx = target.x - ship.x;
+                const dy = target.y - ship.y;
+                const dist = Math.hypot(dx, dy);
+                const angleToTarget = Math.atan2(-dy, dx);
+                let angleDiff = Math.abs(angleToTarget - ship.angle);
+                if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
+
+                if (dist < 1200 && angleDiff < 0.12) {
+                  target.health -= beamDamage;
+                  if (Math.random() > 0.8) explodeEntity(target.x, target.y, '#fff', 1, true);
+                  if (target.health <= 0) {
+                    if (target instanceof EnemyShip) {
+                      onStateUpdate({ score: target.config.score, specialCharge: 2 });
+                      enemies.splice(enemies.indexOf(target), 1);
+                    }
+                    explodeEntity(target.x, target.y, '#fff', 30, true);
+                    camera.shake = 15;
                   }
-                  explodeEntity(target.x, target.y, '#fff', 30, true);
-                  camera.shake = 15;
                 }
-              }
-            });
+              });
+            }
+          } else {
             const fireRate = weap.fireRate / (1 + weaponLevel * 0.15);
             if (!ship['lastFired'] || nowMs - ship['lastFired'] > fireRate) {
               soundService.playShoot(weapon);
               const attackMult = ship.config.attackPower || 1;
               const totalDamage = (weap.damage + weaponLevel) * attackMult;
+
+              const spawnLaser = (ang: number) => {
+                const l = entitiesRef.current.laserPool.get(ship.x, ship.y);
+                l.reset(ship.x, ship.y, ang, weap.color, totalDamage);
+                lasers.push(l);
+              };
+
               if (weapon === WeaponType.SHOTGUN) {
-                for (let i = -2; i <= 2; i++) {
-                  lasers.push(new Laser(ship.x, ship.y, ship.angle + (i * 0.18), weap.color, totalDamage));
-                }
+                for (let i = -2; i <= 2; i++) spawnLaser(ship.angle + (i * 0.18));
                 camera.shake = 12;
               } else if (weapon === WeaponType.MACHINE_GUN) {
-                lasers.push(new Laser(ship.x, ship.y, ship.angle + (Math.random() - 0.5) * 0.1, weap.color, totalDamage));
+                spawnLaser(ship.angle + (Math.random() - 0.5) * 0.1);
                 camera.shake = 2;
               } else {
-                lasers.push(new Laser(ship.x, ship.y, ship.angle, weap.color, totalDamage));
+                spawnLaser(ship.angle);
                 camera.shake = 4;
               }
               ship['lastFired'] = nowMs;
@@ -270,6 +311,9 @@ const Simulation: React.FC<SimulationProps> = ({
           }
         } else {
           entitiesRef.current.infernalBeam = null;
+          if ((onStateUpdate as any).infernalRayTemperature > 0) {
+            onStateUpdate({ infernalRayTemperature: Math.max(0, (onStateUpdate as any).infernalRayTemperature - INFERNAL_RAY_CONFIG.COOL_DOWN_RATE) });
+          }
         }
 
         // Special Attack (Keyboard Q or Touch Special Button)
@@ -295,13 +339,56 @@ const Simulation: React.FC<SimulationProps> = ({
               const f = (100000) / (dist * dist);
               ship.xv += (dx / dist) * f; ship.yv += (dy / dist) * f;
             }
-            // Teleport
-            if (bh.isInEventHorizon(ship.x, ship.y)) {
-              ship.x = bh.targetX + (Math.random() - 0.5) * 200;
-              ship.y = bh.targetY + (Math.random() - 0.5) * 200;
-              ship.xv *= 0.5; ship.yv *= 0.5;
-              companion.say("WORMHOLE TRAVERSAL CONFIRMED");
-              onStateUpdate({ messages: ["SYSTEM: Wormhole traversal complete."] });
+            // Enhanced Warp Fold Mechanic
+            if (bh.isInEventHorizon(ship.x, ship.y) && !ship['warping']) {
+              ship['warping'] = true;
+              soundService.playSpecial();
+              onStateUpdate({ messages: ["CRITICAL: Warp Fold initiated. Re-mapping tensorial manifold..."] });
+
+              // 1. Flush Pools (Visual & Logic)
+              entitiesRef.current.enemies = [];
+              entitiesRef.current.particles = [];
+              entitiesRef.current.resources = [];
+              entitiesRef.current.lasers = [];
+
+              // 2. Warp Sequence (Loading Phase)
+              let warpProgress = 0;
+              const warpInterval = setInterval(() => {
+                warpProgress += 0.05;
+                camera.shake = 20 + warpProgress * 50;
+                camera.zoom = 0.45 - (Math.sin(warpProgress * Math.PI) * 0.2);
+
+                // Visual Warp doppler effect (handled in render loop via ship['warping'] state)
+
+                if (warpProgress >= 1) {
+                  clearInterval(warpInterval);
+
+                  // 3. Compute Phase-Continuous Destination
+                  const currentN = Math.floor(explorationDistance);
+                  const currentO = getGoldenValue(currentN);
+
+                  // Search for a distant K that has a similar phase O_k ≈ O_n
+                  let targetK = currentN + 10000 + Math.floor(Math.random() * 50000);
+                  for (let i = 0; i < 1000; i++) {
+                    if (Math.abs(getGoldenValue(targetK + i) - currentO) < 0.05) {
+                      targetK += i;
+                      break;
+                    }
+                  }
+
+                  // 4. Reload & Exit
+                  ship.x = bh.targetX; ship.y = bh.targetY;
+                  ship.xv = 0; ship.yv = 0;
+                  onStateUpdate({
+                    explorationDistance: targetK,
+                    messages: [`WARP_COMPLETE: Destination K=${targetK} aligned. Phase preserved.`]
+                  });
+
+                  // Visual Shockwave on exit
+                  triggerQuantumPurge();
+                  setTimeout(() => { ship['warping'] = false; }, 500);
+                }
+              }, 100);
             }
             if (dist < 1000) bh.discovered = true;
           });
@@ -354,18 +441,41 @@ const Simulation: React.FC<SimulationProps> = ({
         ctx.fillStyle = COLORS.VOID_DARK; ctx.fillRect(0, 0, width, height);
 
         // Fondo Estelar Reactivo
-        stars.forEach(s => {
+        const goldenDensity = Math.abs(getGoldenValue(explorationDistance / 1000));
+        stars.forEach((s, i) => {
+          if (s.size < 1.0 && i % 10 > (goldenDensity * 5 + 5)) return;
+
           let sx = ((s.x - camera.x * s.depth) % width + width) % width;
           let sy = ((s.y - camera.y * s.depth) % height + height) % height;
-          ctx.fillStyle = `rgba(255, 255, 255, ${s.brightness})`;
-          if (shipVel > 5) {
-            const stretch = shipVel * 2.8 * s.depth;
-            const ang = Math.atan2(ship.yv, -ship.xv);
-            ctx.strokeStyle = `rgba(135, 206, 235, ${s.brightness * 0.5})`;
-            ctx.lineWidth = s.size;
+
+          const opacity = s.brightness * (0.5 + goldenDensity * 0.5);
+          ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+
+          const warpFactor = ship['warping'] ? 4.0 : (shipVel > 5 ? 1.0 : 0);
+          if (warpFactor > 0) {
+            const stretch = (ship['warping'] ? 400 : shipVel * 2.8) * s.depth * warpFactor;
+            const ang = Math.atan2(ship.yv || 0.1, -(ship.xv || 0.1));
+            ctx.strokeStyle = `rgba(135, 206, 235, ${opacity * (ship['warping'] ? 0.8 : 0.5)})`;
+            ctx.lineWidth = s.size * (ship['warping'] ? 2 : 1);
             ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + Math.cos(ang) * stretch, sy - Math.sin(ang) * stretch); ctx.stroke();
           } else {
             ctx.beginPath(); ctx.arc(sx, sy, s.size, 0, Math.PI * 2); ctx.fill();
+          }
+        });
+
+        // Background Parallax Layers
+        const layers = [
+          { depth: 0.05, color: `rgba(14, 165, 233, ${0.05 + goldenDensity * 0.1})` },
+          { depth: 0.15, color: `rgba(168, 85, 247, ${0.03 + goldenDensity * 0.05})` }
+        ];
+        layers.forEach(layer => {
+          ctx.fillStyle = layer.color;
+          for (let i = 0; i < 3; i++) {
+            const ox = (i * 1000 - camera.x * layer.depth) % 2000;
+            const oy = (i * 800 - camera.y * layer.depth) % 1600;
+            ctx.beginPath();
+            ctx.arc(ox + 1000, oy + 800, 400 + goldenDensity * 200, 0, Math.PI * 2);
+            ctx.fill();
           }
         });
 
@@ -454,7 +564,11 @@ const Simulation: React.FC<SimulationProps> = ({
                 explodeEntity(en.x, en.y, en.config.color, 40, true);
                 enemies.splice(ei, 1);
                 onStateUpdate({ score: en.config.score, specialCharge: 3 });
-                if (Math.random() > 0.65) resources.push(new ResourceShard(en.x, en.y));
+                if (Math.random() > 0.65) {
+                  const shard = entitiesRef.current.shardPool.get(en.x, en.y);
+                  shard.reset(en.x, en.y);
+                  resources.push(shard);
+                }
               }
             }
           });
@@ -472,22 +586,36 @@ const Simulation: React.FC<SimulationProps> = ({
         singularities.forEach((s, i) => { if (!s.update()) { singularities.splice(i, 1); return; } s.draw(ctx); });
         particles.forEach((p, i) => { if (!p.update()) { particles.splice(i, 1); return; } p.draw(ctx); });
 
-        // Spawning de enemigos
-        if (enemies.length < 25 && Math.random() > 0.96) {
+        // Spawning de entidades deterministas (Operador Aureo)
+        const spawnDistanceIdx = Math.floor(explorationDistance / 500);
+        if (entitiesRef.current.lastMissionUpdate < spawnDistanceIdx) {
+          entitiesRef.current.lastMissionUpdate = spawnDistanceIdx;
+
+          const entityType = generate_sector_order(spawnDistanceIdx);
           const ang = Math.random() * Math.PI * 2;
-          const spawnDist = 2200;
-          const prob = Math.random();
-          let newEnemy;
-          if (prob > 0.95) {
-            newEnemy = new MotherShip(ship.x + Math.cos(ang) * spawnDist, ship.y + Math.sin(ang) * spawnDist);
-            onStateUpdate({ messages: ["WARNING: MotherShip detected!"] });
-          } else if (prob > 0.8) {
-            newEnemy = new KamikazeEnemy(ship.x + Math.cos(ang) * spawnDist, ship.y + Math.sin(ang) * spawnDist);
-          } else {
-            const type = prob > 0.4 ? EnemyType.SCOUT : EnemyType.INTERCEPTOR;
-            newEnemy = new EnemyShip(ship.x + Math.cos(ang) * spawnDist, ship.y + Math.sin(ang) * spawnDist, type);
+          const spawnDist = 2000;
+          const sx = ship.x + Math.cos(ang) * spawnDist;
+          const sy = ship.y + Math.sin(ang) * spawnDist;
+
+          if (entityType === EntityType.HostileDrone) {
+            const prob = getGoldenValue(spawnDistanceIdx * 1.618);
+            let en;
+            if (prob > 0.85) {
+              en = new MotherShip(sx, sy);
+              onStateUpdate({ messages: ["WARNING: MotherShip detected!"] });
+            } else if (prob < -0.6) {
+              en = new KamikazeEnemy(sx, sy);
+            } else {
+              const type = prob > 0 ? EnemyType.SCOUT : EnemyType.INTERCEPTOR;
+              en = entitiesRef.current.enemyPool.get(sx, sy);
+              en.reset(sx, sy, type);
+            }
+            enemies.push(en);
+          } else if (entityType === EntityType.AetherCrystal) {
+            const shard = entitiesRef.current.shardPool.get(sx, sy);
+            shard.reset(sx, sy);
+            resources.push(shard);
           }
-          enemies.push(newEnemy);
         }
 
         // Logic for motherships
@@ -497,6 +625,21 @@ const Simulation: React.FC<SimulationProps> = ({
             enemies.push(new EnemyShip(en.x + Math.cos(ang) * 100, en.y + Math.sin(ang) * 100, EnemyType.SCOUT));
           }
         });
+
+        // Cubic Tensorial Manifold Visual (Warp Overlay)
+        if (ship['warping']) {
+          ctx.save();
+          ctx.strokeStyle = 'rgba(14, 165, 233, 0.4)';
+          ctx.lineWidth = 2;
+          const gridSize = 100;
+          for (let x = 0; x < width; x += gridSize) {
+            for (let y = 0; y < height; y += gridSize) {
+              const noise = Math.sin(x * 0.01 + nowMs * 0.005) * 10;
+              ctx.strokeRect(x + noise, y + noise, gridSize - 10, gridSize - 10);
+            }
+          }
+          ctx.restore();
+        }
 
         ctx.restore();
 

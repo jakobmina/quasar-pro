@@ -109,8 +109,62 @@ export class MatrixNode {
   }
 }
 
+export function getVectorField(n: number): { x: number, y: number } {
+  const phi = (1 + Math.sqrt(5)) / 2;
+  return {
+    x: Math.cos(Math.PI * phi * n),
+    y: Math.sin(Math.PI * n)
+  };
+}
+
+export enum EntityType {
+  HostileDrone = 'HostileDrone',
+  AetherCrystal = 'AetherCrystal',
+  EmptySpace = 'EmptySpace'
+}
+
+export function generate_sector_order(n: number): EntityType {
+  const phase_shift = 0.3674;
+  const operator_val = getGoldenValue(n);
+
+  if (operator_val > phase_shift) return EntityType.HostileDrone;
+  if (operator_val < -phase_shift) return EntityType.AetherCrystal;
+  return EntityType.EmptySpace;
+}
+
+export class EntityPool<T extends { active: boolean; x: number; y: number }> {
+  private pool: T[] = [];
+  private factory: (x: number, y: number) => T;
+
+  constructor(factory: (x: number, y: number) => T, size: number) {
+    this.factory = factory;
+    for (let i = 0; i < size; i++) {
+      const entity = factory(0, 0);
+      entity.active = false;
+      this.pool.push(entity);
+    }
+  }
+
+  get(x: number, y: number): T {
+    const entity = this.pool.find(e => !e.active) || this.pool[0];
+    entity.x = x;
+    entity.y = y;
+    entity.active = true;
+    // Move to end of pool for LRU-like behavior
+    const idx = this.pool.indexOf(entity);
+    this.pool.splice(idx, 1);
+    this.pool.push(entity);
+    return entity;
+  }
+
+  all(): T[] {
+    return this.pool;
+  }
+}
+
 export class Particle {
   x: number; y: number; xv: number; yv: number; life: number; color: string; decay: number; isData: boolean;
+  active: boolean = true;
   constructor(x: number, y: number, color: string, atomize: boolean = false, isData: boolean = false) {
     this.x = x; this.y = y; this.color = color; this.isData = isData;
     const ang = Math.random() * Math.PI * 2;
@@ -118,7 +172,11 @@ export class Particle {
     this.xv = Math.cos(ang) * speed; this.yv = Math.sin(ang) * speed;
     this.life = 1.0; this.decay = 0.02 + Math.random() * 0.03;
   }
-  update() { this.x += this.xv; this.y += this.yv; this.life -= this.decay; return this.life > 0; }
+  update() {
+    this.x += this.xv; this.y += this.yv; this.life -= this.decay;
+    this.active = this.life > 0;
+    return this.active;
+  }
   draw(ctx: CanvasRenderingContext2D) {
     ctx.save(); ctx.globalAlpha = this.life; ctx.fillStyle = this.color;
     if (this.isData) {
@@ -133,10 +191,20 @@ export class Particle {
 export class EnemyShip {
   x: number; y: number; r: number; angle: number; health: number; maxHealth: number;
   type: EnemyType; config: any; xv: number = 0; yv: number = 0; hitTimer: number = 0;
+  active: boolean = true;
+
   constructor(x: number, y: number, type: EnemyType) {
     this.x = x; this.y = y; this.type = type; this.config = PHYSICS.ENEMY_CONFIGS[type];
     this.r = this.config.r; this.angle = Math.random() * Math.PI * 2;
     this.health = this.config.health; this.maxHealth = this.config.health;
+  }
+
+  reset(x: number, y: number, type: EnemyType) {
+    this.x = x; this.y = y; this.type = type; this.config = PHYSICS.ENEMY_CONFIGS[type];
+    this.r = this.config.r; this.angle = Math.random() * Math.PI * 2;
+    this.health = this.config.health; this.maxHealth = this.config.health;
+    this.active = true;
+    this.xv = 0; this.yv = 0; this.hitTimer = 0;
   }
   update(px: number, py: number) {
     const dx = px - this.x; const dy = py - this.y;
@@ -374,10 +442,20 @@ export class Ship {
 
 export class Laser {
   x: number; y: number; xv: number; yv: number; color: string; damage: number; life: number = 1.0;
+  active: boolean = true;
+
   constructor(x: number, y: number, angle: number, color: string, damage: number) {
     this.x = x; this.y = y; this.color = color; this.damage = damage;
     const speed = 25;
     this.xv = Math.cos(angle) * speed; this.yv = -Math.sin(angle) * speed;
+  }
+
+  reset(x: number, y: number, angle: number, color: string, damage: number) {
+    this.x = x; this.y = y; this.color = color; this.damage = damage;
+    const speed = 25;
+    this.xv = Math.cos(angle) * speed; this.yv = -Math.sin(angle) * speed;
+    this.life = 1.0;
+    this.active = true;
   }
   update() { this.x += this.xv; this.y += this.yv; this.life -= 0.02; return this.life > 0; }
   draw(ctx: CanvasRenderingContext2D) {
@@ -408,7 +486,20 @@ export class SpaceDebris {
 
 export class ResourceShard {
   x: number; y: number; xv: number; yv: number;
-  constructor(x: number, y: number) { this.x = x; this.y = y; this.xv = (Math.random() - 0.5) * 12; this.yv = (Math.random() - 0.5) * 12; }
+  active: boolean = true;
+
+  constructor(x: number, y: number) {
+    this.x = x; this.y = y;
+    this.xv = (Math.random() - 0.5) * 12;
+    this.yv = (Math.random() - 0.5) * 12;
+  }
+
+  reset(x: number, y: number) {
+    this.x = x; this.y = y;
+    this.xv = (Math.random() - 0.5) * 12;
+    this.yv = (Math.random() - 0.5) * 12;
+    this.active = true;
+  }
   update() { this.x += this.xv; this.y += this.yv; this.xv *= 0.96; this.yv *= 0.96; }
   draw(ctx: CanvasRenderingContext2D) {
     ctx.save();
