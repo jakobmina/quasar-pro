@@ -39,10 +39,13 @@ export enum ShipModel {
 }
 
 export interface ShipConfig {
+  id: string;
   model: ShipModel;
+  name?: string;
   color: string;
   thrust: number;
   healthBonus: number;
+  isCustom?: boolean;
 }
 
 export enum PowerUpType {
@@ -67,6 +70,7 @@ export interface SimulationState {
   difficulty: Difficulty;
   weapon: WeaponType;
   shipModel: ShipModel;
+  selectedShipConfig?: ShipConfig;
   weaponLevel: number;
   droneLevel: number;
   upgradePoints: number;

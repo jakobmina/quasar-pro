@@ -13,13 +13,15 @@ interface SimulationProps extends SimulationState {
 }
 
 const Simulation: React.FC<SimulationProps> = ({
-  status, weapon, weaponLevel, shipModel, specialCharge, aiIntegrity, corruptionLevel,
+  status, weapon, weaponLevel, shipModel, selectedShipConfig, specialCharge, aiIntegrity, corruptionLevel,
   explorationDistance, currentMission, gameMode,
   onStateUpdate, onGameOver, calibration, touchInput
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const radarCanvasRef = useRef<HTMLCanvasElement>(null);
   const hitFlashRef = useRef<number>(0);
+
+  const initialShipConfig = selectedShipConfig || SHIP_MODELS[shipModel];
 
   // Fondo estelar con profundidad (Paralaje)
   const stars = useMemo(() => Array.from({ length: 1500 }, () => ({
@@ -46,10 +48,12 @@ const Simulation: React.FC<SimulationProps> = ({
 
     resources: ResourceShard[];
     blackholes: Blackhole[];
+    hubs: any[]; // Changed to any[] as Hub might not be fully defined in physics.ts view
     camera: { x: number, y: number, zoom: number, shake: number };
     keys: Record<string, boolean>;
+    lastMissionUpdate: number;
   }>({
-    ship: new Ship(shipModel, SHIP_MODELS[shipModel].color),
+    ship: new Ship(initialShipConfig),
     companion: new CompanionShip(),
     singularities: [],
     lasers: [],

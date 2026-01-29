@@ -201,21 +201,38 @@ export class MotherShip extends EnemyShip {
   }
 }
 
+
 export class Ship {
   x: number; y: number; r: number = 12; angle: number = Math.PI / 2; xv: number = 0; yv: number = 0;
   color: string = '#0ea5e9'; hitTimer: number = 0;
   model: ShipModel;
   weaponColor: string;
+  config: ShipConfig;
 
-  constructor(model: ShipModel = ShipModel.INTERCEPTOR, color: string = '#0ea5e9') {
-    this.x = PHYSICS.WORLD_SIZE / 2; this.y = PHYSICS.WORLD_SIZE / 2;
-    this.model = model;
-    this.color = color;
-    this.weaponColor = color;
+  constructor(config: ShipConfig) {
+    this.x = PHYSICS.WORLD_SIZE / 2;
+    this.y = PHYSICS.WORLD_SIZE / 2;
+    this.config = config;
+    this.model = config.model;
+    this.color = config.color;
+    this.weaponColor = config.color;
+    this.r = 12 + (config.healthBonus > 0 ? 4 : 0);
 
-    // Model specific attribute adjustments
-    if (model === ShipModel.TITAN) this.r = 16;
-    if (model === ShipModel.SPECTER) this.r = 10;
+    if (this.model === ShipModel.TITAN) this.r = 16;
+    if (this.model === ShipModel.SPECTER) this.r = 10;
+  }
+
+  compute_lagrangian() {
+    // Regla 1.1: L_symp (Conservativo/Hamiltoniano) -> Kinetic Energy
+    const v_sq = this.xv * this.xv + this.yv * this.yv;
+    const L_symp = 0.5 * v_sq;
+
+    // Regla 1.2: L_metr (Métrico/Disipativo) -> Friction and Entropy
+    const friction_loss = (1 - PHYSICS.FRICTION) * v_sq;
+    const damage_entropy = this.hitTimer > 0 ? 1.0 : 0.0;
+    const L_metr = friction_loss + damage_entropy;
+
+    return { L_symp, L_metr };
   }
 
   draw(ctx: CanvasRenderingContext2D) {
@@ -223,6 +240,10 @@ export class Ship {
       this.hitTimer--;
       if (Math.floor(Date.now() / 50) % 2 === 0) return;
     }
+
+    // Regla 3.3: Visualización Diagnóstica (Conceptual)
+    // We could draw a small indicator for L_symp vs L_metr if needed
+
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(-this.angle);
@@ -232,6 +253,7 @@ export class Ship {
     ctx.shadowColor = this.weaponColor;
     ctx.strokeStyle = this.color;
     ctx.lineWidth = 2;
+    // ... (rest of the draw method remains largely the same but uses this.config attributes)
 
     switch (this.model) {
       case ShipModel.TITAN:

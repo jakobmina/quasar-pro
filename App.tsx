@@ -1,8 +1,10 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { GameStatus, SimulationState, Difficulty, WeaponType, ShipModel, MissionType } from './types';
+import { GameStatus, SimulationState, Difficulty, WeaponType, ShipModel, MissionType, ShipConfig } from './types';
 import { PHYSICS, SHIP_MODELS, WEAPON_CONFIGS } from './constants';
 import Simulation from './components/Simulation';
 import TouchControls, { TouchInput } from './components/TouchControls';
+import { shipDb } from './services/db';
+import ShipCustomizer from './components/ShipCustomizer';
 
 const App: React.FC = () => {
   // Detect mobile/touch device
@@ -23,6 +25,7 @@ const App: React.FC = () => {
   const [state, setState] = useState<SimulationState>({
     score: 0, lives: 5, status: GameStatus.INITIAL, difficulty: Difficulty.NORMAL,
     weapon: WeaponType.LASER, shipModel: ShipModel.INTERCEPTOR,
+    selectedShipConfig: undefined,
     gameMode: 'STORY',
     weaponLevel: 1, droneLevel: 1, upgradePoints: 0,
     aiIntegrity: 100, maxIntegrity: 100, corruptionLevel: 0,
@@ -38,6 +41,31 @@ const App: React.FC = () => {
       goal: 1000
     }
   });
+
+  const [availableShips, setAvailableShips] = useState<ShipConfig[]>([]);
+  const [isCustomizing, setIsCustomizing] = useState(false);
+  const [editingShip, setEditingShip] = useState<ShipConfig | undefined>(undefined);
+
+  useEffect(() => {
+    const initDb = async () => {
+      await shipDb.init();
+      const ships = await shipDb.getShips();
+      setAvailableShips(ships);
+      // Set default selected ship if not set
+      if (!state.selectedShipConfig && ships.length > 0) {
+        setState(s => ({ ...s, selectedShipConfig: ships.find(sh => !sh.isCustom) || ships[0] }));
+      }
+    };
+    initDb();
+  }, []);
+
+  const handleSaveShip = async (config: ShipConfig) => {
+    await shipDb.saveShip(config);
+    const ships = await shipDb.getShips();
+    setAvailableShips(ships);
+    setState(s => ({ ...s, selectedShipConfig: config, shipModel: config.model }));
+    setIsCustomizing(false);
+  };
   const [hudVisibility, setHudVisibility] = useState({
     messages: true,
     stats: true,
@@ -220,17 +248,37 @@ const App: React.FC = () => {
           <div className="grid grid-cols-2 gap-12 w-full max-w-5xl mb-12">
             <div className="space-y-4">
               <h3 className="text-sky-500 font-bold mono uppercase text-xs tracking-[0.3em]">1. Select_Neural_Hull</h3>
-              <div className="grid grid-cols-2 gap-2">
-                {Object.values(SHIP_MODELS).map(ship => (
-                  <button
-                    key={ship.model}
-                    onClick={() => setState(s => ({ ...s, shipModel: ship.model }))}
-                    className={`p-4 border-2 transition-all text-xs font-black uppercase tracking-widest ${state.shipModel === ship.model ? 'border-white bg-white/10' : 'border-white/10 bg-black/40 text-slate-500'}`}
-                    style={{ color: state.shipModel === ship.model ? ship.color : '' }}
-                  >
-                    {ship.model}
-                  </button>
+              <div className="grid grid-cols-2 gap-2 h-40 overflow-y-auto custom-scrollbar pr-2">
+                {availableShips.map(ship => (
+                  <div key={ship.id} className="relative group">
+                    <button
+                      onClick={() => setState(s => ({ ...s, selectedShipConfig: ship, shipModel: ship.model }))}
+                      className={`w-full p-4 border-2 transition-all text-xs font-black uppercase tracking-widest ${state.selectedShipConfig?.id === ship.id ? 'border-white bg-white/10' : 'border-white/10 bg-black/40 text-slate-500'}`}
+                      style={{ color: state.selectedShipConfig?.id === ship.id ? ship.color : '' }}
+                    >
+                      {ship.name || ship.model}
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingShip(ship);
+                        setIsCustomizing(true);
+                      }}
+                      className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 p-1 bg-sky-500 text-black text-[8px] font-bold rounded-sm transition-opacity"
+                    >
+                      EDIT
+                    </button>
+                  </div>
                 ))}
+                <button
+                  onClick={() => {
+                    setEditingShip(undefined);
+                    setIsCustomizing(true);
+                  }}
+                  className="p-4 border-2 border-dashed border-sky-500/30 text-sky-400 text-xs font-black uppercase tracking-widest hover:bg-sky-500/10 transition-all"
+                >
+                  [+] NEW_HULL
+                </button>
               </div>
             </div>
 
@@ -249,6 +297,14 @@ const App: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {isCustomizing && (
+            <ShipCustomizer
+              onSave={handleSaveShip}
+              onCancel={() => setIsCustomizing(false)}
+              initialConfig={editingShip}
+            />
+          )}
 
           <div className="px-20 py-8 bg-sky-500 text-black font-black text-xl uppercase tracking-[0.4em] hover:bg-white transition-all shadow-[0_0_60px_rgba(14,165,233,0.4)] cursor-pointer"
             onClick={() => handleStateUpdate({ status: GameStatus.RUNNING })}
