@@ -35,7 +35,10 @@ export enum ShipModel {
   INTERCEPTOR = 'INTERCEPTOR',
   TITAN = 'TITAN',
   SPECTER = 'SPECTER',
-  VORTEX = 'VORTEX'
+  VORTEX = 'VORTEX',
+  EXPLORER = 'EXPLORER',
+  TANK = 'TANK',
+  MOTHERSHIP = 'MOTHERSHIP'
 }
 
 export interface ShipConfig {
@@ -45,6 +48,8 @@ export interface ShipConfig {
   color: string;
   thrust: number;
   healthBonus: number;
+  defense: number;
+  attackPower: number;
   isCustom?: boolean;
 }
 

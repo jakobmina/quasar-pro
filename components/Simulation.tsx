@@ -154,7 +154,7 @@ const Simulation: React.FC<SimulationProps> = ({
       const height = canvas.height = canvas.parentElement?.clientHeight || 0;
 
       if (status === GameStatus.PAUSED || status === GameStatus.GAME_OVER) {
-        soundService.setThrust(false);
+        soundService.setThrust(false, shipModel);
         // Render basic scene without updating logic
         ctx.fillStyle = COLORS.VOID_DARK; ctx.fillRect(0, 0, width, height);
         ctx.save();
@@ -191,7 +191,7 @@ const Simulation: React.FC<SimulationProps> = ({
         // Touch controls override keyboard when active
         const hasTouchThrust = touchInput && touchInput.thrust > 0.1;
         const isThrusting = hasTouchThrust || keys['KeyW'] || keys['ArrowUp'] || keys['KeyS'] || keys['ArrowDown'];
-        soundService.setThrust(isThrusting);
+        soundService.setThrust(isThrusting, shipModel);
 
         if (hasTouchThrust) {
           // Joystick controls: angle directly from joystick, thrust proportional
@@ -248,20 +248,21 @@ const Simulation: React.FC<SimulationProps> = ({
                 }
               }
             });
-          } else {
             const fireRate = weap.fireRate / (1 + weaponLevel * 0.15);
             if (!ship['lastFired'] || nowMs - ship['lastFired'] > fireRate) {
               soundService.playShoot(weapon);
+              const attackMult = ship.config.attackPower || 1;
+              const totalDamage = (weap.damage + weaponLevel) * attackMult;
               if (weapon === WeaponType.SHOTGUN) {
                 for (let i = -2; i <= 2; i++) {
-                  lasers.push(new Laser(ship.x, ship.y, ship.angle + (i * 0.18), weap.color, weap.damage + weaponLevel));
+                  lasers.push(new Laser(ship.x, ship.y, ship.angle + (i * 0.18), weap.color, totalDamage));
                 }
                 camera.shake = 12;
               } else if (weapon === WeaponType.MACHINE_GUN) {
-                lasers.push(new Laser(ship.x, ship.y, ship.angle + (Math.random() - 0.5) * 0.1, weap.color, weap.damage + weaponLevel));
+                lasers.push(new Laser(ship.x, ship.y, ship.angle + (Math.random() - 0.5) * 0.1, weap.color, totalDamage));
                 camera.shake = 2;
               } else {
-                lasers.push(new Laser(ship.x, ship.y, ship.angle, weap.color, weap.damage + weaponLevel));
+                lasers.push(new Laser(ship.x, ship.y, ship.angle, weap.color, totalDamage));
                 camera.shake = 4;
               }
               ship['lastFired'] = nowMs;
@@ -424,7 +425,12 @@ const Simulation: React.FC<SimulationProps> = ({
         enemies.forEach((en, i) => {
           en.update(ship.x, ship.y); en.draw(ctx);
           if (Math.hypot(en.x - ship.x, en.y - ship.y) < en.r + ship.r) {
-            onStateUpdate({ lives: -1, corruptionLevel: 12, aiIntegrity: -5 });
+            const damageFactor = 1 / (ship.config.defense || 1);
+            onStateUpdate({
+              lives: -1,
+              corruptionLevel: 12 * damageFactor,
+              aiIntegrity: -5 * damageFactor
+            });
             enemies.splice(i, 1);
             explodeEntity(en.x, en.y, en.config.color, 35);
             soundService.playDamage();

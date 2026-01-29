@@ -9,10 +9,13 @@ export enum EnemyType {
 }
 
 export const SHIP_MODELS: Record<ShipModel, ShipConfig> = {
-  [ShipModel.INTERCEPTOR]: { model: ShipModel.INTERCEPTOR, color: '#0ea5e9', thrust: 0.4, healthBonus: 0 },
-  [ShipModel.TITAN]: { model: ShipModel.TITAN, color: '#10b981', thrust: 0.25, healthBonus: 50 },
-  [ShipModel.SPECTER]: { model: ShipModel.SPECTER, color: '#a855f7', thrust: 0.55, healthBonus: -20 },
-  [ShipModel.VORTEX]: { model: ShipModel.VORTEX, color: '#f59e0b', thrust: 0.35, healthBonus: 0 }
+  [ShipModel.INTERCEPTOR]: { id: 'interceptor', model: ShipModel.INTERCEPTOR, color: '#0ea5e9', thrust: 0.4, healthBonus: 0, defense: 1.0, attackPower: 1.0 },
+  [ShipModel.TITAN]: { id: 'titan', model: ShipModel.TITAN, color: '#10b981', thrust: 0.25, healthBonus: 50, defense: 2.0, attackPower: 1.2 },
+  [ShipModel.SPECTER]: { id: 'specter', model: ShipModel.SPECTER, color: '#a855f7', thrust: 0.55, healthBonus: -20, defense: 0.5, attackPower: 1.5 },
+  [ShipModel.VORTEX]: { id: 'vortex', model: ShipModel.VORTEX, color: '#f59e0b', thrust: 0.35, healthBonus: 0, defense: 1.2, attackPower: 1.1 },
+  [ShipModel.EXPLORER]: { id: 'explorer', model: ShipModel.EXPLORER, color: '#38bdf8', thrust: 0.65, healthBonus: -10, defense: 0.3, attackPower: 0.8 },
+  [ShipModel.TANK]: { id: 'tank', model: ShipModel.TANK, color: '#f43f5e', thrust: 0.3, healthBonus: 40, defense: 1.8, attackPower: 1.3 },
+  [ShipModel.MOTHERSHIP]: { id: 'mothership', model: ShipModel.MOTHERSHIP, color: '#fff', thrust: 0.15, healthBonus: 200, defense: 5.0, attackPower: 0.5 }
 };
 
 export const PHYSICS = {

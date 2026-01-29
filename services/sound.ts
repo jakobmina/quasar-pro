@@ -2,6 +2,7 @@
  * SoundService: Procedural Sound Synthesis for Quasar-Pro
  * Uses Web Audio API for a lightweight, zero-asset auditory experience.
  */
+import { ShipModel } from '../types';
 
 class SoundService {
     private ctx: AudioContext | null = null;
@@ -99,11 +100,20 @@ class SoundService {
         noise.stop(this.ctx.currentTime + duration);
     }
 
-    setThrust(active: boolean, intensity: number = 1) {
+    setThrust(active: boolean, model: ShipModel = ShipModel.INTERCEPTOR, intensity: number = 1) {
         this.init();
-        if (!this.thrustGain || !this.ctx) return;
+        if (!this.thrustGain || !this.thrustOsc || !this.ctx) return;
+
         const targetGain = active ? 0.15 * intensity : 0;
         this.thrustGain.gain.setTargetAtTime(targetGain, this.ctx.currentTime, 0.05);
+
+        // Adjust frequency based on ship model
+        let freq = 40;
+        if (model === ShipModel.MOTHERSHIP) freq = 25;
+        else if (model === ShipModel.TANK || model === ShipModel.TITAN) freq = 32;
+        else if (model === ShipModel.EXPLORER || model === ShipModel.SPECTER) freq = 65;
+
+        this.thrustOsc.frequency.setTargetAtTime(freq, this.ctx.currentTime, 0.1);
     }
 
     playPickup() {

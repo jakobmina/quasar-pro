@@ -1,6 +1,6 @@
 
 import { PHYSICS, COLORS, EnemyType } from '../constants';
-import { PowerUpType, MissionType, ShipModel } from '../types';
+import { PowerUpType, MissionType, ShipModel, ShipConfig } from '../types';
 
 const PHI = (1 + Math.sqrt(5)) / 2;
 
@@ -216,10 +216,12 @@ export class Ship {
     this.model = config.model;
     this.color = config.color;
     this.weaponColor = config.color;
-    this.r = 12 + (config.healthBonus > 0 ? 4 : 0);
-
+    this.r = 12;
     if (this.model === ShipModel.TITAN) this.r = 16;
     if (this.model === ShipModel.SPECTER) this.r = 10;
+    if (this.model === ShipModel.EXPLORER) this.r = 8;
+    if (this.model === ShipModel.TANK) this.r = 20;
+    if (this.model === ShipModel.MOTHERSHIP) this.r = 45;
   }
 
   compute_lagrangian() {
@@ -241,9 +243,6 @@ export class Ship {
       if (Math.floor(Date.now() / 50) % 2 === 0) return;
     }
 
-    // Regla 3.3: Visualización Diagnóstica (Conceptual)
-    // We could draw a small indicator for L_symp vs L_metr if needed
-
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(-this.angle);
@@ -253,9 +252,55 @@ export class Ship {
     ctx.shadowColor = this.weaponColor;
     ctx.strokeStyle = this.color;
     ctx.lineWidth = 2;
-    // ... (rest of the draw method remains largely the same but uses this.config attributes)
 
     switch (this.model) {
+      case ShipModel.EXPLORER:
+        // Agile Triangle
+        ctx.beginPath();
+        ctx.moveTo(this.r * 2, 0);
+        ctx.lineTo(-this.r, -this.r);
+        ctx.lineTo(-this.r * 0.5, 0);
+        ctx.lineTo(-this.r, this.r);
+        ctx.closePath();
+        ctx.stroke();
+        // Thruster glow
+        ctx.fillStyle = this.weaponColor;
+        ctx.beginPath(); ctx.arc(-this.r * 0.8, 0, 3, 0, Math.PI * 2); ctx.fill();
+        break;
+
+      case ShipModel.TANK:
+        // Heavy Boxy Tank
+        ctx.strokeRect(-this.r, -this.r, this.r * 2, this.r * 2);
+        ctx.beginPath();
+        ctx.moveTo(this.r, -this.r * 0.5);
+        ctx.lineTo(this.r * 1.5, -this.r * 0.5);
+        ctx.lineTo(this.r * 1.5, this.r * 0.5);
+        ctx.lineTo(this.r, this.r * 0.5);
+        ctx.stroke();
+        // Inner detail
+        ctx.beginPath(); ctx.arc(0, 0, this.r * 0.5, 0, Math.PI * 2); ctx.stroke();
+        break;
+
+      case ShipModel.MOTHERSHIP:
+        // Giant Hexagonal Command Ship
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const a = (Math.PI / 3) * i;
+          ctx.lineTo(Math.cos(a) * this.r, Math.sin(a) * this.r);
+        }
+        ctx.closePath();
+        ctx.stroke();
+        // Circular inner rings
+        ctx.beginPath(); ctx.arc(0, 0, this.r * 0.7, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(0, 0, this.r * 0.4, 0, Math.PI * 2); ctx.stroke();
+        // Satellite docks
+        for (let i = 0; i < 3; i++) {
+          const a = (Math.PI * 2 / 3) * i + Date.now() * 0.002;
+          ctx.beginPath(); ctx.arc(Math.cos(a) * this.r * 1.2, Math.sin(a) * this.r * 1.2, 5, 0, Math.PI * 2); ctx.stroke();
+        }
+        break;
+
       case ShipModel.TITAN:
         // Heavy Hexagonal Tank
         ctx.beginPath();
