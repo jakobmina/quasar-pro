@@ -1,5 +1,4 @@
 const { app, BrowserWindow, dialog } = require('electron');
-const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -17,7 +16,7 @@ function createWindow() {
     });
 
     if (isDev) {
-        win.loadURL('http://localhost:3000');
+        win.loadURL('http://localhost:8080');
         win.webContents.openDevTools();
     } else {
         win.loadFile(path.join(__dirname, 'dist/index.html'));
@@ -25,36 +24,38 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+    const { autoUpdater } = require('electron-updater');
+
     createWindow();
 
     if (!isDev) {
         autoUpdater.checkForUpdatesAndNotify();
+
+        autoUpdater.on('update-available', () => {
+            dialog.showMessageBox({
+                type: 'info',
+                title: 'Update Available',
+                message: 'A new version of Aether Rescue is available. Downloading now...'
+            });
+        });
+
+        autoUpdater.on('update-downloaded', () => {
+            dialog.showMessageBox({
+                type: 'info',
+                title: 'Update Ready',
+                message: 'Update downloaded. Restart now?',
+                buttons: ['Restart', 'Later']
+            }).then((result) => {
+                if (result.response === 0) {
+                    autoUpdater.quitAndInstall();
+                }
+            });
+        });
     }
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
             createWindow();
-        }
-    });
-});
-
-autoUpdater.on('update-available', () => {
-    dialog.showMessageBox({
-        type: 'info',
-        title: 'Update Available',
-        message: 'A new version of Aether Rescue is available. Downloading now...'
-    });
-});
-
-autoUpdater.on('update-downloaded', () => {
-    dialog.showMessageBox({
-        type: 'info',
-        title: 'Update Ready',
-        message: 'Update downloaded. Restart now?',
-        buttons: ['Restart', 'Later']
-    }).then((result) => {
-        if (result.response === 0) {
-            autoUpdater.quitAndInstall();
         }
     });
 });

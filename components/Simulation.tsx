@@ -82,7 +82,7 @@ const Simulation: React.FC<SimulationProps> = ({
 
     laserPool: new EntityPool((x, y) => new Laser(x, y, 0, '#fff', 1), 100),
     particlePool: new EntityPool((x, y) => new Particle(x, y, '#fff'), 500),
-    enemyPool: new EntityPool((x, y) => new EnemyShip(x, y, EnemyType.DRONE), 50),
+    enemyPool: new EntityPool((x, y) => new EnemyShip(x, y, EnemyType.SCOUT), 50),
     shardPool: new EntityPool((x, y) => new ResourceShard(x, y), 50),
 
     overheatTimer: 0
@@ -171,8 +171,10 @@ const Simulation: React.FC<SimulationProps> = ({
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      const width = canvas.width = canvas.parentElement?.clientWidth || 0;
-      const height = canvas.height = canvas.parentElement?.clientHeight || 0;
+      const dpr = window.devicePixelRatio || 1;
+      const width = canvas.width = (canvas.parentElement?.clientWidth || 0) * dpr;
+      const height = canvas.height = (canvas.parentElement?.clientHeight || 0) * dpr;
+      ctx.scale(dpr, dpr);
 
       if (status === GameStatus.PAUSED || status === GameStatus.GAME_OVER) {
         soundService.setThrust(false, shipModel);
