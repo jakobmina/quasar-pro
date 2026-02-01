@@ -1,6 +1,6 @@
-<div align="center"> 
+<div type="favicon" align="center"> 
                                
-![change_the_style_to_a_3d_computer_generated](https://github.com/user-attachments/assets/19601d70-7efb-435b-bce2-b15f497a38c5)  
+<img width="200" height="209" alt="image" src="https://github.com/user-attachments/assets/0f8ebcee-237c-42a5-91f4-11e04064510d" />
 
 </div>   
 
